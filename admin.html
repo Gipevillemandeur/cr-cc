@@ -264,6 +264,24 @@
       window.location.reload();
     }
   }
+
+  // verifierMotDePasse en deux temps :
+  // 1. Vérifier le mdp mis en cache dans localStorage (après 1er login réussi)
+  // 2. Sinon attendre que Firebase charge et appelle window._verifierMdpFirebase
+  function verifierMotDePasse() {
+    const mdp = document.getElementById("login-password").value;
+    const mdpCache = localStorage.getItem("crcc_admin_mdp") || "admin123";
+    
+    if (mdp === mdpCache) {
+      document.getElementById("login-overlay").style.display = "none";
+      document.getElementById("admin-content").style.display = "block";
+      if (typeof window._chargerTout === "function") window._chargerTout();
+    } else if (typeof window._verifierMdpFirebase === "function") {
+      window._verifierMdpFirebase(mdp);
+    } else {
+      document.getElementById("login-error").style.display = "block";
+    }
+  }
 </script>
 
 <!-- Firebase -->
@@ -292,19 +310,20 @@
   // ============================================================
   // LOGIN
   // ============================================================
-  window.verifierMotDePasse = async function() {
-    const mdp = document.getElementById("login-password").value;
-    
-    // Charger le mot de passe depuis Firebase
+  // Exposer la vérification Firebase pour le script non-module
+  window._verifierMdpFirebase = async function(mdp) {
     try {
       const configDoc = await getDoc(doc(db, "config", "etablissement"));
       if (configDoc.exists()) {
         const data = configDoc.data();
         motDePasseAdmin = data.motDePasseAdmin || "admin123";
+        // Mettre en cache pour les prochaines fois
+        localStorage.setItem("crcc_admin_mdp", motDePasseAdmin);
       }
-    } catch(e) { console.log("Premier accès, mot de passe par défaut"); }
+    } catch(e) { console.log("Premier accès"); }
 
     if (mdp === motDePasseAdmin) {
+      localStorage.setItem("crcc_admin_mdp", motDePasseAdmin);
       document.getElementById("login-overlay").style.display = "none";
       document.getElementById("admin-content").style.display = "block";
       chargerTout();
@@ -312,6 +331,8 @@
       document.getElementById("login-error").style.display = "block";
     }
   };
+
+  window._chargerTout = function() { chargerTout(); };
 
   // ============================================================
   // CHARGEMENT
