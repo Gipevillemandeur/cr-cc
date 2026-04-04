@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Administration - AppConseils</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    body { background: radial-gradient(circle at top, #f7f2ea 0%, #f4f6f8 48%); min-height: 100vh; padding: 20px; }
+    .admin-container { max-width: 900px; margin: 0 auto; }
+    .admin-header { background: #fff; border-radius: 16px; padding: 20px 24px; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.07); display: flex; align-items: center; justify-content: space-between; }
+    .admin-title { font-size: 20px; font-weight: 800; color: #1b1f24; }
+    .admin-subtitle { color: #5d6b7b; font-size: 13px; margin-top: 4px; }
+    .admin-panel { background: #fff; border-radius: 16px; padding: 24px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+    .admin-panel h2 { font-size: 16px; font-weight: 800; margin: 0 0 16px; color: #1b1f24; border-bottom: 2px solid #f0f4f7; padding-bottom: 10px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .form-row.single { grid-template-columns: 1fr; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group label { font-size: 12px; color: #5d6b7b; font-weight: 600; text-transform: uppercase; }
+    .form-group input, .form-group textarea, .form-group select { border: 1px solid #d6dde5; border-radius: 8px; padding: 9px 12px; font-size: 14px; font-family: inherit; width: 100%; box-sizing: border-box; }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .btn-save { background: #1f6f8b; color: #fff; border: none; border-radius: 10px; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .btn-save:hover { background: #175f78; }
+    .btn-danger { background: #e74c3c; color: #fff; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-add { background: #27ae60; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 8px; }
+    .classe-item { border: 1px solid #d6dde5; border-radius: 10px; padding: 14px; margin-bottom: 10px; background: #f8fafc; }
+    .classe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .classe-nom { font-weight: 800; font-size: 15px; color: #1b1f24; }
+    .profs-list { margin-top: 8px; }
+    .prof-item { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .prof-item input { border: 1px solid #d6dde5; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+    .direction-item { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .direction-item input { border: 1px solid #d6dde5; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+    .success-msg { background: #d4edda; border: 1px solid #27ae60; color: #155724; border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: 600; margin-top: 10px; display: none; }
+    .login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+    .login-card { background: #fff; border-radius: 16px; padding: 32px; max-width: 380px; width: 90%; text-align: center; }
+    .login-card h2 { margin: 0 0 8px; font-size: 20px; }
+    .login-card p { color: #5d6b7b; font-size: 13px; margin-bottom: 20px; }
+    .login-card input { width: 100%; border: 1px solid #d6dde5; border-radius: 10px; padding: 10px 14px; font-size: 16px; text-align: center; letter-spacing: 0.1em; box-sizing: border-box; margin-bottom: 12px; }
+    .login-card .btn-save { width: 100%; padding: 12px; font-size: 15px; }
+    .login-error { color: #e74c3c; font-size: 13px; margin-top: 8px; display: none; }
+    .import-zone { border: 2px dashed #d6dde5; border-radius: 10px; padding: 16px; margin-bottom: 12px; background: #f8fafc; }
+    .import-zone textarea { border: none; background: transparent; width: 100%; font-size: 12px; font-family: monospace; min-height: 100px; resize: vertical; }
+    .import-zone p { margin: 0 0 8px; font-size: 12px; color: #5d6b7b; }
+    .tabs { display: flex; gap: 0; margin-bottom: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #d6dde5; }
+    .tab { flex: 1; padding: 11px; text-align: center; font-size: 13px; font-weight: 700; cursor: pointer; background: #fff; color: #5d6b7b; border: none; }
+    .tab.active { background: #1f6f8b; color: #fff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .loading { text-align: center; color: #5d6b7b; padding: 20px; }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } .prof-item { grid-template-columns: 1fr auto; } }
+  </style>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <div style="font-size:36px;margin-bottom:12px;">🔐</div>
+    <h2>Administration</h2>
+    <p>Entrez le mot de passe administrateur pour accéder à la configuration.</p>
+    <input type="password" id="login-password" placeholder="Mot de passe" onkeydown="if(event.key==='Enter') verifierMotDePasse()"/>
+    <button class="btn-save" onclick="verifierMotDePasse()">Accéder</button>
+    <div class="login-error" id="login-error">❌ Mot de passe incorrect</div>
+    <div style="margin-top:16px;">
+      <a href="index.html" style="color:#5d6b7b;font-size:13px;">← Retour à l'application</a>
+    </div>
+  </div>
+</div>
+
+<!-- Admin interface -->
+<div class="admin-container" id="admin-content" style="display:none;">
+  <div class="admin-header">
+    <div>
+      <div class="admin-title">⚙️ Administration</div>
+      <div class="admin-subtitle" id="admin-etablissement-nom">Chargement...</div>
+    </div>
+    <a href="index.html" class="btn-save" style="text-decoration:none;font-size:13px;">← Retour à l'app</a>
+  </div>
+
+  <!-- Onglets -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('etablissement')">🏫 Établissement</button>
+    <button class="tab" onclick="switchTab('classes')">📚 Classes & Profs</button>
+    <button class="tab" onclick="switchTab('direction')">👤 Direction</button>
+  </div>
+
+  <!-- Onglet Établissement -->
+  <div class="tab-content active" id="tab-etablissement">
+    <div class="admin-panel">
+      <h2>Informations de l'établissement</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nom de l'établissement</label>
+          <input type="text" id="etab-nom" placeholder="Collège Lucie Aubrac"/>
+        </div>
+        <div class="form-group">
+          <label>Académie</label>
+          <input type="text" id="etab-academie" placeholder="Orléans-Tours"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nom de l'association (GIPE, APE, FCPE...)</label>
+          <input type="text" id="etab-association" placeholder="GIPE Villemandeur"/>
+        </div>
+        <div class="form-group">
+          <label>Email de destination</label>
+          <input type="email" id="etab-email" placeholder="contact@etablissement.com"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Logo établissement (PNG/JPG, max 200ko)</label>
+          <input type="file" id="etab-logo-etab" accept="image/*"/>
+          <img id="preview-logo-etab" style="max-height:60px;margin-top:6px;display:none;border-radius:6px;"/>
+        </div>
+        <div class="form-group">
+          <label>Logo association (PNG/JPG, max 200ko)</label>
+          <input type="file" id="etab-logo-asso" accept="image/*"/>
+          <img id="preview-logo-asso" style="max-height:60px;margin-top:6px;display:none;border-radius:6px;"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Mot de passe administrateur</label>
+          <input type="password" id="etab-mdp" placeholder="Nouveau mot de passe (laisser vide pour garder l'actuel)"/>
+        </div>
+      </div>
+      <button class="btn-save" onclick="sauvegarderEtablissement()">💾 Sauvegarder</button>
+      <div class="success-msg" id="success-etablissement">✅ Informations sauvegardées !</div>
+    </div>
+  </div>
+
+  <!-- Onglet Classes -->
+  <div class="tab-content" id="tab-classes">
+    <div class="admin-panel">
+      <h2>Import rapide (copier-coller depuis tableur)</h2>
+      <div class="import-zone">
+        <p>Copiez vos données depuis Excel/LibreOffice et collez-les ici.<br>Format attendu : <strong>Classe [tab] Matière [tab] Professeur</strong> (une ligne par prof)</p>
+        <textarea id="import-data" placeholder="3A	FRANÇAIS	Mme DUPONT Marie&#10;3A	MATHÉMATIQUES	M. MARTIN Jean&#10;3B	FRANÇAIS	Mme DURAND Sophie"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+        <button class="btn-save" onclick="importerDonnees()">📥 Importer</button>
+        <span style="font-size:12px;color:#5d6b7b;">Les données importées s'ajouteront aux classes existantes</span>
+      </div>
+      <div class="success-msg" id="success-import">✅ Import réussi !</div>
+    </div>
+
+    <div class="admin-panel">
+      <h2>Gestion des classes</h2>
+      <div id="classes-loading" class="loading">⏳ Chargement...</div>
+      <div id="classes-list"></div>
+      <button class="btn-add" onclick="ajouterClasse()">+ Ajouter une classe</button>
+      <div style="margin-top:16px;">
+        <button class="btn-save" onclick="sauvegarderClasses()">💾 Sauvegarder toutes les classes</button>
+        <div class="success-msg" id="success-classes">✅ Classes sauvegardées !</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onglet Direction -->
+  <div class="tab-content" id="tab-direction">
+    <div class="admin-panel">
+      <h2>Membres de la direction</h2>
+      <p style="font-size:13px;color:#5d6b7b;margin-bottom:12px;">Ces noms apparaîtront dans la liste "Président(e) de séance".</p>
+      <div id="direction-list"></div>
+      <button class="btn-add" onclick="ajouterDirecteur()">+ Ajouter un membre</button>
+      <div style="margin-top:16px;">
+        <button class="btn-save" onclick="sauvegarderDirection()">💾 Sauvegarder</button>
+        <div class="success-msg" id="success-direction">✅ Direction sauvegardée !</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAoneVFkcPWhQFki4iJslb4h2euUChAzLQ",
+    authDomain: "appconseilgipe.firebaseapp.com",
+    projectId: "appconseilgipe",
+    storageBucket: "appconseilgipe.firebasestorage.app",
+    messagingSenderId: "354288978312",
+    appId: "1:354288978312:web:620d5928ff72a2083c523d"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  // Données en mémoire
+  let classesData   = {}; // { "3A": { code: "1234", profs: [{matiere, prof}] } }
+  let directionData = []; // ["Mme GRIFFET", ...]
+  let configData    = {};
+  let motDePasseAdmin = "admin123"; // défaut
+
+  // ============================================================
+  // LOGIN
+  // ============================================================
+  window.verifierMotDePasse = async function() {
+    const mdp = document.getElementById("login-password").value;
+    
+    // Charger le mot de passe depuis Firebase
+    try {
+      const configDoc = await getDoc(doc(db, "config", "etablissement"));
+      if (configDoc.exists()) {
+        const data = configDoc.data();
+        motDePasseAdmin = data.motDePasseAdmin || "admin123";
+      }
+    } catch(e) { console.log("Premier accès, mot de passe par défaut"); }
+
+    if (mdp === motDePasseAdmin) {
+      document.getElementById("login-overlay").style.display = "none";
+      document.getElementById("admin-content").style.display = "block";
+      chargerTout();
+    } else {
+      document.getElementById("login-error").style.display = "block";
+    }
+  };
+
+  // ============================================================
+  // CHARGEMENT
+  // ============================================================
+  async function chargerTout() {
+    await chargerConfig();
+    await chargerClasses();
+    await chargerDirection();
+  }
+
+  async function chargerConfig() {
+    try {
+      const snap = await getDoc(doc(db, "config", "etablissement"));
+      if (snap.exists()) {
+        configData = snap.data();
+        document.getElementById("etab-nom").value         = configData.nom           || "";
+        document.getElementById("etab-academie").value    = configData.academie      || "";
+        document.getElementById("etab-email").value       = configData.emailGIPE     || "";
+        document.getElementById("etab-association").value = configData.nomAssociation || "";
+        document.getElementById("admin-etablissement-nom").textContent = configData.nom || "Non configuré";
+        if (configData.logoEtablissement) {
+          const img = document.getElementById("preview-logo-etab");
+          img.src = configData.logoEtablissement; img.style.display = "block";
+        }
+        if (configData.logoAssociation) {
+          const img = document.getElementById("preview-logo-asso");
+          img.src = configData.logoAssociation; img.style.display = "block";
+        }
+      }
+    } catch(e) { console.error("Erreur config:", e); }
+  }
+
+  async function chargerClasses() {
+    document.getElementById("classes-loading").style.display = "block";
+    document.getElementById("classes-list").innerHTML = "";
+    try {
+      const snap = await getDoc(doc(db, "config", "classes"));
+      if (snap.exists()) {
+        classesData = snap.data();
+      }
+    } catch(e) { console.error("Erreur classes:", e); }
+    document.getElementById("classes-loading").style.display = "none";
+    renderClasses();
+  }
+
+  async function chargerDirection() {
+    try {
+      const snap = await getDoc(doc(db, "config", "direction"));
+      if (snap.exists()) {
+        directionData = snap.data().noms || [];
+      }
+    } catch(e) { console.error("Erreur direction:", e); }
+    renderDirection();
+  }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+  function renderClasses() {
+    const container = document.getElementById("classes-list");
+    container.innerHTML = "";
+    const classes = Object.keys(classesData).sort();
+    
+    if (classes.length === 0) {
+      container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucune classe configurée. Utilisez l\'import ou ajoutez manuellement.</p>';
+      return;
+    }
+
+    classes.forEach(nom => {
+      const classe = classesData[nom];
+      const div = document.createElement("div");
+      div.className = "classe-item";
+      div.id = `classe-${nom}`;
+
+      const profs = (classe.profs || []).map((p, i) => `
+        <div class="prof-item">
+          <input type="text" value="${p.matiere || ""}" placeholder="Matière" data-classe="${nom}" data-idx="${i}" data-field="matiere"/>
+          <input type="text" value="${p.prof || ""}" placeholder="Professeur" data-classe="${nom}" data-idx="${i}" data-field="prof"/>
+          <button class="btn-danger" onclick="supprimerProf('${nom}', ${i})">✕</button>
+        </div>
+      `).join("");
+
+      div.innerHTML = `
+        <div class="classe-header">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="classe-nom">Classe ${nom}</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:12px;color:#5d6b7b;">Code :</span>
+              <input type="text" value="${classe.code || ""}" placeholder="Code" style="width:80px;border:1px solid #d6dde5;border-radius:6px;padding:4px 8px;font-size:13px;" data-classe="${nom}" data-field="code"/>
+            </div>
+          </div>
+          <button class="btn-danger" onclick="supprimerClasse('${nom}')">Supprimer la classe</button>
+        </div>
+        <div class="profs-list" id="profs-${nom}">
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;">
+            <span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;">Matière</span>
+            <span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;">Professeur</span>
+            <span></span>
+          </div>
+          ${profs}
+        </div>
+        <button class="btn-add" style="margin-top:6px;font-size:12px;padding:5px 10px;" onclick="ajouterProf('${nom}')">+ Ajouter un prof</button>
+      `;
+      container.appendChild(div);
+    });
+
+    // Écouter les changements
+    container.querySelectorAll("input[data-field='matiere'], input[data-field='prof']").forEach(inp => {
+      inp.addEventListener("input", () => {
+        const classe = inp.dataset.classe;
+        const idx    = parseInt(inp.dataset.idx);
+        const field  = inp.dataset.field;
+        classesData[classe].profs[idx][field] = inp.value;
+      });
+    });
+    container.querySelectorAll("input[data-field='code']").forEach(inp => {
+      inp.addEventListener("input", () => {
+        classesData[inp.dataset.classe].code = inp.value;
+      });
+    });
+  }
+
+  function renderDirection() {
+    const container = document.getElementById("direction-list");
+    container.innerHTML = "";
+    directionData.forEach((nom, i) => {
+      const div = document.createElement("div");
+      div.className = "direction-item";
+      div.innerHTML = `
+        <input type="text" value="${nom}" placeholder="Nom et titre" data-idx="${i}"/>
+        <button class="btn-danger" onclick="supprimerDirecteur(${i})">✕</button>
+      `;
+      div.querySelector("input").addEventListener("input", e => {
+        directionData[i] = e.target.value;
+      });
+      container.appendChild(div);
+    });
+  }
+
+  // ============================================================
+  // ACTIONS
+  // ============================================================
+  window.switchTab = function(tab) {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+    document.getElementById(`tab-${tab}`).classList.add("active");
+    event.target.classList.add("active");
+  };
+
+  window.ajouterClasse = function() {
+    const nom = prompt("Nom de la classe (ex: 3A, 4B) :").trim().toUpperCase();
+    if (!nom) return;
+    if (classesData[nom]) { alert("Cette classe existe déjà !"); return; }
+    classesData[nom] = { code: "", profs: [] };
+    renderClasses();
+  };
+
+  window.supprimerClasse = function(nom) {
+    if (!confirm(`Supprimer la classe ${nom} et tous ses profs ?`)) return;
+    delete classesData[nom];
+    renderClasses();
+  };
+
+  window.ajouterProf = function(nomClasse) {
+    classesData[nomClasse].profs.push({ matiere: "", prof: "" });
+    renderClasses();
+  };
+
+  window.supprimerProf = function(nomClasse, idx) {
+    classesData[nomClasse].profs.splice(idx, 1);
+    renderClasses();
+  };
+
+  window.ajouterDirecteur = function() {
+    directionData.push("");
+    renderDirection();
+  };
+
+  window.supprimerDirecteur = function(idx) {
+    directionData.splice(idx, 1);
+    renderDirection();
+  };
+
+  // ============================================================
+  // IMPORT TABLEUR
+  // ============================================================
+  window.importerDonnees = function() {
+    const texte = document.getElementById("import-data").value.trim();
+    if (!texte) { alert("Collez vos données dans la zone d'import."); return; }
+
+    const lignes = texte.split("\n");
+    let nbImport = 0;
+
+    lignes.forEach(ligne => {
+      const cols = ligne.split("\t");
+      if (cols.length < 3) return;
+      const classe  = cols[0].trim().toUpperCase();
+      const matiere = cols[1].trim();
+      const prof    = cols[2].trim();
+      if (!classe || !matiere || !prof) return;
+
+      if (!classesData[classe]) classesData[classe] = { code: "", profs: [] };
+      // Éviter les doublons
+      const existe = classesData[classe].profs.some(p => p.matiere === matiere && p.prof === prof);
+      if (!existe) {
+        classesData[classe].profs.push({ matiere, prof });
+        nbImport++;
+      }
+    });
+
+    renderClasses();
+    document.getElementById("import-data").value = "";
+    const msg = document.getElementById("success-import");
+    msg.textContent = `✅ ${nbImport} ligne(s) importée(s) !`;
+    msg.style.display = "block";
+    setTimeout(() => msg.style.display = "none", 3000);
+  };
+
+  // ============================================================
+  // SAUVEGARDE
+  // ============================================================
+  // Preview logos
+  function setupLogoPreview(inputId, previewId) {
+    document.getElementById(inputId).addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 300000) { alert("Image trop lourde (max 300ko)"); e.target.value = ""; return; }
+      const reader = new FileReader();
+      reader.onload = r => {
+        const img = document.getElementById(previewId);
+        img.src = r.target.result;
+        img.style.display = "block";
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  setupLogoPreview("etab-logo-etab", "preview-logo-etab");
+  setupLogoPreview("etab-logo-asso", "preview-logo-asso");
+
+  function fileToBase64(inputId) {
+    return new Promise(resolve => {
+      const file = document.getElementById(inputId).files[0];
+      if (!file) { resolve(null); return; }
+      const reader = new FileReader();
+      reader.onload = r => resolve(r.target.result);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  window.sauvegarderEtablissement = async function() {
+    const nom        = document.getElementById("etab-nom").value.trim();
+    const academie   = document.getElementById("etab-academie").value.trim();
+    const email      = document.getElementById("etab-email").value.trim();
+    const association = document.getElementById("etab-association").value.trim();
+    const mdp        = document.getElementById("etab-mdp").value.trim();
+
+    // Logos en base64
+    const logoEtab = await fileToBase64("etab-logo-etab");
+    const logoAsso = await fileToBase64("etab-logo-asso");
+
+    const data = {
+      nom, academie,
+      emailGIPE: email,
+      nomAssociation: association,
+      motDePasseAdmin: mdp || motDePasseAdmin
+    };
+    if (logoEtab) data.logoEtablissement = logoEtab;
+    if (logoAsso) data.logoAssociation   = logoAsso;
+
+    try {
+      await setDoc(doc(db, "config", "etablissement"), data, { merge: true });
+      document.getElementById("admin-etablissement-nom").textContent = nom || "Non configuré";
+      motDePasseAdmin = data.motDePasseAdmin;
+      document.getElementById("etab-mdp").value = "";
+      afficherSucces("success-etablissement");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  window.sauvegarderClasses = async function() {
+    try {
+      await setDoc(doc(db, "config", "classes"), classesData);
+      afficherSucces("success-classes");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  window.sauvegarderDirection = async function() {
+    // Récupérer les valeurs actuelles des inputs
+    document.querySelectorAll("#direction-list input").forEach((inp, i) => {
+      directionData[i] = inp.value.trim();
+    });
+    directionData = directionData.filter(n => n !== "");
+
+    try {
+      await setDoc(doc(db, "config", "direction"), { noms: directionData });
+      afficherSucces("success-direction");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  function afficherSucces(id) {
+    const el = document.getElementById(id);
+    el.style.display = "block";
+    setTimeout(() => el.style.display = "none", 3000);
+  }
+
+</script>
+</body>
+</html>
