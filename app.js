@@ -210,10 +210,10 @@ async function loadFromFirebase() {
     populateClasseSelects(allClasses);
   }
 
-  // Config établissement (email association etc.)
+  // Config établissement (email GIPE etc.)
   if (configSnap.exists()) {
     const data = configSnap.data();
-    if (data.emailassociation) window._emailassociation = data.emailassociation;
+    if (data.emailGIPE) window._emailGIPE = data.emailGIPE;
   }
 
   showAccueilFormulaire();
@@ -342,7 +342,7 @@ classSelect.addEventListener("change", async (e) => {
   const codeRaw     = classCodes[classe];
   const codeAttendu = (codeRaw && codeRaw.toString().trim() !== "") ? codeRaw.toString().trim() : null;
   if (codeAttendu && sessionStorage.getItem(`access_${classe}`) !== "granted") {
-    const codeSaisi = prompt(`Accès sécurisé association.\nVeuillez entrer le code pour la classe ${classe} :`);
+    const codeSaisi = prompt(`Accès sécurisé GIPE.\nVeuillez entrer le code pour la classe ${classe} :`);
     if (codeSaisi === codeAttendu) {
       sessionStorage.setItem(`access_${classe}`, "granted");
     } else {
@@ -1151,23 +1151,23 @@ async function generatePDF(apercuSeulement = false) {
     // Retourner un Blob pour l'afficher dans l'iframe
     return doc.output("blob");
   } else {
-    // Envoyer au association via Google Apps Script
-    await envoyerAuassociation(doc, classe, trimestre, formatDate(document.getElementById("input-date").value), nomFichier);
+    // Envoyer au GIPE via Google Apps Script
+    await envoyerAuGIPE(doc, classe, trimestre, formatDate(document.getElementById("input-date").value), nomFichier);
     effacerSauvegarde();
   }
 }
 
 // ============================================================
-//  ENVOI AU association
+//  ENVOI AU GIPE
 // ============================================================
-const association_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyE-vzGYC1vkDfs8PeUK7Y-Vzx8HvMOqXWtT_aYejBsz1VNqB2zcvbwDrkDCI7p2DxPDQ/exec";
+const GIPE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyE-vzGYC1vkDfs8PeUK7Y-Vzx8HvMOqXWtT_aYejBsz1VNqB2zcvbwDrkDCI7p2DxPDQ/exec";
 
 // Détecter si on est sur mobile
 function estMobile() {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
-async function envoyerAuassociation(doc, classe, trimestre, date, nomFichier) {
+async function envoyerAuGIPE(doc, classe, trimestre, date, nomFichier) {
   // Télécharger le PDF sur l'appareil (toujours, desktop et mobile)
   doc.save(nomFichier + ".pdf");
 
@@ -1196,12 +1196,12 @@ Ce document a été généré automatiquement par l'application de compte rendu 
 
 Cordialement,
 Les parents délégués`);
-    const mailtoUrl = `mailto:contact@associationvillemandeur.com?subject=${sujet}&body=${corps}`;
+    const mailtoUrl = `mailto:${window._emailGIPE || ""}?subject=${sujet}&body=${corps}`;
 
     document.getElementById("envoi-icone").textContent = "📱";
     document.getElementById("envoi-titre").textContent = "PDF téléchargé !";
     document.getElementById("envoi-message").innerHTML = `Le PDF a été sauvegardé sur votre appareil.<br><br>
-      <strong>Pour l'envoyer au association :</strong><br>
+      <strong>Pour l'envoyer au GIPE :</strong><br>
       1️⃣ Cliquez sur le bouton ci-dessous pour ouvrir votre messagerie<br>
       2️⃣ Joignez le PDF que vous venez de télécharger<br>
       3️⃣ Envoyez !`;
@@ -1219,21 +1219,21 @@ Les parents délégués`);
     try {
       const pdfBase64 = doc.output("datauristring").split(",")[1];
 
-      fetch(association_SCRIPT_URL, {
+      fetch(GIPE_SCRIPT_URL, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pdf: pdfBase64, classe, trimestre, date })
-      }).catch(err => console.warn("Envoi association:", err));
+      }).catch(err => console.warn("Envoi GIPE:", err));
 
       document.getElementById("envoi-icone").textContent = "✅";
-      document.getElementById("envoi-titre").textContent = "PDF téléchargé et envoyé au association !";
-      document.getElementById("envoi-message").textContent = `Le PDF a été sauvegardé sur votre appareil et envoyé automatiquement à contact@associationvillemandeur.com`;
+      document.getElementById("envoi-titre").textContent = "PDF téléchargé et envoyé au GIPE !";
+      document.getElementById("envoi-message").textContent = `Le PDF a été sauvegardé sur votre appareil et envoyé automatiquement à ${window._emailGIPE || "l'association"}`;
     } catch (err) {
-      console.error("Erreur envoi association:", err);
+      console.error("Erreur envoi GIPE:", err);
       document.getElementById("envoi-icone").textContent = "⚠️";
       document.getElementById("envoi-titre").textContent = "Attention";
-      document.getElementById("envoi-message").innerHTML = `Le PDF a été sauvegardé sur votre appareil mais l'envoi automatique a échoué. Veuillez l'envoyer manuellement à contact@associationvillemandeur.com`;
+      document.getElementById("envoi-message").innerHTML = `Le PDF a été sauvegardé sur votre appareil mais l'envoi automatique a échoué. Veuillez l'envoyer manuellement à ${window._emailGIPE || "l'association"}`;
     } finally {
       setTimeout(() => {
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);

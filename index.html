@@ -16,7 +16,7 @@
           <img src="assets/logo-parents.png" alt="Logo parents delegues" class="accueil-logo" />
         </div>
         <h1 class="accueil-titre">Compte rendu<br>des parents délégués</h1>
-        <p class="accueil-sous-titre">{{academie}} — Conseil de classe</p>
+        <p class="accueil-sous-titre">Académie Orléans-Tours — Conseil de classe</p>
         <button class="btn info" onclick="document.getElementById('help-modal').style.display='flex'" style="margin-bottom:8px;font-size:13px;padding:8px 16px;border-radius:10px;">❓ Aide / Guide d'utilisation</button>
         <a href="admin.html" style="display:inline-block;background:#f4f6f8;color:#5d6b7b;border:1px solid #d6dde5;border-radius:10px;padding:6px 14px;font-size:12px;font-weight:600;text-decoration:none;margin-bottom:8px;">⚙️ Administration</a>
 
@@ -262,7 +262,7 @@
 
           <p><strong>💾 Sauvegarde automatique</strong> : Vos données sont sauvegardées automatiquement à chaque modification. Si vous fermez l'onglet par accident, ne vous inquiétez pas — à la prochaine ouverture du site, il vous proposera de reprendre où vous en étiez.</p>
 
-          <p><strong>1. Écran d'accueil</strong> : Sélectionnez votre classe dans la liste, choisissez le trimestre et la date du conseil, puis entrez le code d'accès transmis par le {{association}}. Cliquez sur "Commencer" — la liste des matières et des professeurs se charge automatiquement.</p>
+          <p><strong>1. Écran d'accueil</strong> : Sélectionnez votre classe dans la liste, choisissez le trimestre et la date du conseil, puis entrez le code d'accès transmis par le GIPE. Cliquez sur "Commencer" — la liste des matières et des professeurs se charge automatiquement.</p>
 
           <p><strong>2. Saisie (partie JAUNE ✍️)</strong> : Remplissez le formulaire :<br>
           • <strong>Équipe pédagogique</strong> : par défaut tous les professeurs sont présents (✓ vert). Cliquez sur le bouton pour passer en absent (✗ rouge).<br>
@@ -273,15 +273,15 @@
 
           <p><strong>3. Listing élèves</strong> : Cliquez sur ce bouton pour ouvrir une feuille de suivi par élève, imprimable, avec des cases à cocher (Félicitations, Compliments, etc.).</p>
 
-          <p><strong>4. Relecture avec le 2ème parent (optionnel) 🔗</strong> : Cliquez sur "📨 Envoyer au {{association}} & télécharger" puis sur "Aperçu". Dans la fenêtre qui s'ouvre, vous verrez un lien de relecture. Copiez-le et envoyez-le au 2ème parent délégué par SMS ou email.<br>
+          <p><strong>4. Relecture avec le 2ème parent (optionnel) 🔗</strong> : Cliquez sur "📨 Envoyer au GIPE & télécharger" puis sur "Aperçu". Dans la fenêtre qui s'ouvre, vous verrez un lien de relecture. Copiez-le et envoyez-le au 2ème parent délégué par SMS ou email.<br>
           Le 2ème parent ouvre le lien, consulte le compte rendu, peut le modifier si besoin, puis vous renvoie un lien.<br>
           Quand vous recevez ce lien retour, les modifications apparaissent <span style="color:#e74c3c;text-decoration:line-through;">en rouge barré</span> et <span style="color:#27ae60;font-weight:700;">en vert</span> pour que vous puissiez les repérer facilement.</p>
 
-          <p><strong>5. Envoi au {{association}} 🚀</strong> : Quand le compte rendu est prêt, cliquez sur "📨 Envoyer au {{association}} & télécharger".<br>
+          <p><strong>5. Envoi au GIPE 🚀</strong> : Quand le compte rendu est prêt, cliquez sur "📨 Envoyer au GIPE & télécharger".<br>
           • Si le 2ème parent n'a pas encore relu → une fenêtre vous demande si vous souhaitez d'abord lui envoyer pour relecture.<br>
-          • Cliquez sur "Non, j'envoie au {{association}}" → le PDF est téléchargé sur votre appareil.<br><br>
-          <strong>Sur ordinateur</strong> 💻 : le PDF est aussi <strong>envoyé automatiquement</strong> à {{emailAssociation}}. Vous n'avez rien d'autre à faire !<br><br>
-          <strong>Sur téléphone</strong> 📱 : le PDF est téléchargé sur votre appareil. Une fenêtre s'ouvre pour vous proposer d'ouvrir votre messagerie avec l'adresse du {{association}} déjà pré-remplie. Il vous suffira de joindre le PDF téléchargé et d'envoyer !</p>
+          • Cliquez sur "Non, j'envoie au GIPE" → le PDF est téléchargé sur votre appareil.<br><br>
+          <strong>Sur ordinateur</strong> 💻 : le PDF est aussi <strong>envoyé automatiquement</strong> à . Vous n'avez rien d'autre à faire !<br><br>
+          <strong>Sur téléphone</strong> 📱 : le PDF est téléchargé sur votre appareil. Une fenêtre s'ouvre pour vous proposer d'ouvrir votre messagerie avec l'adresse du GIPE déjà pré-remplie. Il vous suffira de joindre le PDF téléchargé et d'envoyer !</p>
 
         </div>
       </div>
@@ -292,15 +292,15 @@
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
       import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyAoneVFkcPWhQFki4iJslb4h2euUChAzLQ",
-        authDomain: "appconseilgipe.firebaseapp.com",
-        projectId: "appconseilgipe",
-        storageBucket: "appconseilgipe.firebasestorage.app",
-        messagingSenderId: "354288978312",
-        appId: "1:354288978312:web:620d5928ff72a2083c523d"
-      };
+      // Charger la config Firebase depuis localStorage
+      const savedConfig = localStorage.getItem("crcc_firebase_config");
+      if (!savedConfig) {
+        document.getElementById("accueil-chargement").innerHTML =
+          "⚠️ Application non configurée.<br><br><a href='admin.html' style='color:#1f6f8b;font-weight:700;font-size:15px;'>⚙️ Configurer l'application →</a>";
+        throw new Error("Firebase non configuré");
+      }
 
+      const firebaseConfig = JSON.parse(savedConfig);
       const app = initializeApp(firebaseConfig);
       const db  = getFirestore(app);
 
@@ -308,45 +308,10 @@
       window._firebaseDb     = db;
       window._firebaseDoc    = doc;
       window._firebaseGetDoc = getDoc;
-      window._email{{association}}      = "{{emailAssociation}}";
+      window._emailGIPE      = "";
 
       // Déclencher le chargement une fois Firebase prêt
-      window.addEventListener("load", async () => {
-        // Charger la config établissement pour les logos et infos
-        try {
-          const snap = await getDoc(doc(db, "config", "etablissement"));
-          if (snap.exists()) {
-            const data = snap.data();
-            // Mettre à jour l'académie dans le header
-            if (data.academie) {
-              ["header-academie", "header-academie-p2"].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.textContent = data.academie;
-              });
-            }
-            // Mettre à jour les logos
-            if (data.logoEtablissement) {
-              ["logo-etablissement", "logo-etablissement-p2"].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) { el.src = data.logoEtablissement; el.style.display = "block"; }
-              });
-            }
-            if (data.logoAssociation) {
-              ["logo-association", "logo-association-p2"].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) { el.src = data.logoAssociation; el.style.display = "block"; }
-              });
-            }
-            // Nom de l'association dans l'accueil
-            if (data.nomAssociation) {
-              const el = document.getElementById("accueil-nom-association");
-              if (el) el.textContent = data.nomAssociation;
-            }
-            window._emailassociation = data.emailassociation || "";
-            window._nomAssociation   = data.nomAssociation || "Parents délégués";
-          }
-        } catch(e) { console.warn("Config établissement:", e); }
-
+      window.addEventListener("load", () => {
         if (typeof loadConfig === "function") loadConfig();
       });
     </script>
@@ -461,7 +426,7 @@
 
         <div class="apercu-btns">
           <button class="btn btn-annuler" onclick="fermerApercu()">✏️ Corriger</button>
-          <button class="btn btn-confirmer" onclick="demanderConfirmation()">📨 Envoyer au {{association}} & télécharger</button>
+          <button class="btn btn-confirmer" onclick="demanderConfirmation()">📨 Envoyer au GIPE & télécharger</button>
         </div>
       </div>
     </div>
@@ -474,7 +439,7 @@
         <div style="font-size:13px;color:#5d6b7b;margin-bottom:24px;">Le 2ème parent délégué a-t-il eu l'occasion de vérifier ce compte rendu ?</div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <button onclick="confirmerPDF()" style="background:#1f6f8b;color:#fff;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;">
-            📨 Non, j'envoie au {{association}} et télécharge
+            📨 Non, j'envoie au GIPE et télécharge
           </button>
           <button onclick="revenirRelecture()" style="background:#f2a541;color:#fff;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;">
             🔗 Si, je l'envoie d'abord au 2ème parent

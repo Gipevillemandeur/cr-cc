@@ -53,6 +53,46 @@
 </head>
 <body>
 
+<!-- Page setup Firebase (première ouverture) -->
+<div class="login-overlay" id="firebase-setup" style="display:none;">
+  <div class="login-card" style="max-width:540px;text-align:left;">
+    <div style="text-align:center;font-size:36px;margin-bottom:12px;">🔥</div>
+    <h2 style="text-align:center;">Configuration Firebase</h2>
+    <p style="color:#5d6b7b;font-size:13px;margin-bottom:20px;text-align:center;">
+      Entrez les clés de votre projet Firebase.<br>
+      Vous les trouverez dans la <a href="https://console.firebase.google.com" target="_blank" style="color:#1f6f8b;">console Firebase</a> → Paramètres du projet → Vos applications → SDK Web.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+      <div class="form-group" style="grid-column:1/-1;">
+        <label>API Key *</label>
+        <input type="text" id="fb-apikey" placeholder="AIzaSy..."/>
+      </div>
+      <div class="form-group">
+        <label>Auth Domain *</label>
+        <input type="text" id="fb-authdomain" placeholder="mon-projet.firebaseapp.com"/>
+      </div>
+      <div class="form-group">
+        <label>Project ID *</label>
+        <input type="text" id="fb-projectid" placeholder="mon-projet"/>
+      </div>
+      <div class="form-group">
+        <label>Storage Bucket</label>
+        <input type="text" id="fb-storagebucket" placeholder="mon-projet.firebasestorage.app"/>
+      </div>
+      <div class="form-group">
+        <label>Messaging Sender ID</label>
+        <input type="text" id="fb-senderid" placeholder="123456789"/>
+      </div>
+      <div class="form-group" style="grid-column:1/-1;">
+        <label>App ID *</label>
+        <input type="text" id="fb-appid" placeholder="1:123456789:web:abc123"/>
+      </div>
+    </div>
+    <button class="btn-save" style="width:100%;padding:12px;font-size:15px;" onclick="sauvegarderFirebaseConfig()">🔥 Connecter et continuer</button>
+    <div id="firebase-error" style="color:#e74c3c;font-size:13px;margin-top:8px;display:none;text-align:center;"></div>
+  </div>
+</div>
+
 <!-- Login overlay -->
 <div class="login-overlay" id="login-overlay">
   <div class="login-card">
@@ -75,7 +115,10 @@
       <div class="admin-title">⚙️ Administration</div>
       <div class="admin-subtitle" id="admin-etablissement-nom">Chargement...</div>
     </div>
-    <a href="index.html" class="btn-save" style="text-decoration:none;font-size:13px;">← Retour à l'app</a>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button onclick="resetFirebaseConfig()" style="background:none;border:1px solid #d6dde5;border-radius:8px;padding:6px 10px;font-size:11px;color:#5d6b7b;cursor:pointer;" title="Changer de base de données Firebase">🔄 Firebase</button>
+      <a href="index.html" class="btn-save" style="text-decoration:none;font-size:13px;">← Retour à l'app</a>
+    </div>
   </div>
 
   <!-- Onglets -->
@@ -101,27 +144,9 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Nom de l'association (GIPE, APE, FCPE...)</label>
-          <input type="text" id="etab-association" placeholder="GIPE Villemandeur"/>
-        </div>
-        <div class="form-group">
-          <label>Email de destination</label>
+          <label>Email de destination (GIPE/APE)</label>
           <input type="email" id="etab-email" placeholder="contact@etablissement.com"/>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Logo établissement (PNG/JPG, max 200ko)</label>
-          <input type="file" id="etab-logo-etab" accept="image/*"/>
-          <img id="preview-logo-etab" style="max-height:60px;margin-top:6px;display:none;border-radius:6px;"/>
-        </div>
-        <div class="form-group">
-          <label>Logo association (PNG/JPG, max 200ko)</label>
-          <input type="file" id="etab-logo-asso" accept="image/*"/>
-          <img id="preview-logo-asso" style="max-height:60px;margin-top:6px;display:none;border-radius:6px;"/>
-        </div>
-      </div>
-      <div class="form-row">
         <div class="form-group">
           <label>Mot de passe administrateur</label>
           <input type="password" id="etab-mdp" placeholder="Nouveau mot de passe (laisser vide pour garder l'actuel)"/>
@@ -180,15 +205,15 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAoneVFkcPWhQFki4iJslb4h2euUChAzLQ",
-    authDomain: "appconseilgipe.firebaseapp.com",
-    projectId: "appconseilgipe",
-    storageBucket: "appconseilgipe.firebasestorage.app",
-    messagingSenderId: "354288978312",
-    appId: "1:354288978312:web:620d5928ff72a2083c523d"
-  };
+  // Charger la config Firebase depuis localStorage
+  const savedConfig = localStorage.getItem("crcc_firebase_config");
+  if (!savedConfig) {
+    document.getElementById("login-overlay").style.display = "none";
+    document.getElementById("firebase-setup").style.display = "flex";
+    throw new Error("Firebase non configuré — affichage de la page de setup");
+  }
 
+  const firebaseConfig = JSON.parse(savedConfig);
   const app = initializeApp(firebaseConfig);
   const db  = getFirestore(app);
 
@@ -197,6 +222,36 @@
   let directionData = []; // ["Mme GRIFFET", ...]
   let configData    = {};
   let motDePasseAdmin = "admin123"; // défaut
+
+  // ============================================================
+  // SETUP FIREBASE
+  // ============================================================
+  window.sauvegarderFirebaseConfig = function() {
+    const apiKey        = document.getElementById("fb-apikey").value.trim();
+    const authDomain    = document.getElementById("fb-authdomain").value.trim();
+    const projectId     = document.getElementById("fb-projectid").value.trim();
+    const storageBucket = document.getElementById("fb-storagebucket").value.trim();
+    const senderId      = document.getElementById("fb-senderid").value.trim();
+    const appId         = document.getElementById("fb-appid").value.trim();
+    const errEl         = document.getElementById("firebase-error");
+
+    if (!apiKey || !authDomain || !projectId || !appId) {
+      errEl.textContent = "⚠️ Veuillez remplir les champs obligatoires (*)";
+      errEl.style.display = "block";
+      return;
+    }
+
+    const config = { apiKey, authDomain, projectId, storageBucket, messagingSenderId: senderId, appId };
+    localStorage.setItem("crcc_firebase_config", JSON.stringify(config));
+    window.location.reload();
+  };
+
+  window.resetFirebaseConfig = function() {
+    if (confirm("Réinitialiser la configuration Firebase ?")) {
+      localStorage.removeItem("crcc_firebase_config");
+      window.location.reload();
+    }
+  };
 
   // ============================================================
   // LOGIN
@@ -236,19 +291,10 @@
       const snap = await getDoc(doc(db, "config", "etablissement"));
       if (snap.exists()) {
         configData = snap.data();
-        document.getElementById("etab-nom").value         = configData.nom           || "";
-        document.getElementById("etab-academie").value    = configData.academie      || "";
-        document.getElementById("etab-email").value       = configData.emailGIPE     || "";
-        document.getElementById("etab-association").value = configData.nomAssociation || "";
+        document.getElementById("etab-nom").value      = configData.nom      || "";
+        document.getElementById("etab-academie").value = configData.academie || "";
+        document.getElementById("etab-email").value    = configData.emailGIPE || "";
         document.getElementById("admin-etablissement-nom").textContent = configData.nom || "Non configuré";
-        if (configData.logoEtablissement) {
-          const img = document.getElementById("preview-logo-etab");
-          img.src = configData.logoEtablissement; img.style.display = "block";
-        }
-        if (configData.logoAssociation) {
-          const img = document.getElementById("preview-logo-asso");
-          img.src = configData.logoAssociation; img.style.display = "block";
-        }
       }
     } catch(e) { console.error("Erreur config:", e); }
   }
@@ -442,56 +488,16 @@
   // ============================================================
   // SAUVEGARDE
   // ============================================================
-  // Preview logos
-  function setupLogoPreview(inputId, previewId) {
-    document.getElementById(inputId).addEventListener("change", e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      if (file.size > 300000) { alert("Image trop lourde (max 300ko)"); e.target.value = ""; return; }
-      const reader = new FileReader();
-      reader.onload = r => {
-        const img = document.getElementById(previewId);
-        img.src = r.target.result;
-        img.style.display = "block";
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-  setupLogoPreview("etab-logo-etab", "preview-logo-etab");
-  setupLogoPreview("etab-logo-asso", "preview-logo-asso");
-
-  function fileToBase64(inputId) {
-    return new Promise(resolve => {
-      const file = document.getElementById(inputId).files[0];
-      if (!file) { resolve(null); return; }
-      const reader = new FileReader();
-      reader.onload = r => resolve(r.target.result);
-      reader.readAsDataURL(file);
-    });
-  }
-
   window.sauvegarderEtablissement = async function() {
-    const nom        = document.getElementById("etab-nom").value.trim();
-    const academie   = document.getElementById("etab-academie").value.trim();
-    const email      = document.getElementById("etab-email").value.trim();
-    const association = document.getElementById("etab-association").value.trim();
-    const mdp        = document.getElementById("etab-mdp").value.trim();
+    const nom      = document.getElementById("etab-nom").value.trim();
+    const academie = document.getElementById("etab-academie").value.trim();
+    const email    = document.getElementById("etab-email").value.trim();
+    const mdp      = document.getElementById("etab-mdp").value.trim();
 
-    // Logos en base64
-    const logoEtab = await fileToBase64("etab-logo-etab");
-    const logoAsso = await fileToBase64("etab-logo-asso");
-
-    const data = {
-      nom, academie,
-      emailGIPE: email,
-      nomAssociation: association,
-      motDePasseAdmin: mdp || motDePasseAdmin
-    };
-    if (logoEtab) data.logoEtablissement = logoEtab;
-    if (logoAsso) data.logoAssociation   = logoAsso;
+    const data = { nom, academie, emailGIPE: email, motDePasseAdmin: mdp || motDePasseAdmin };
 
     try {
-      await setDoc(doc(db, "config", "etablissement"), data, { merge: true });
+      await setDoc(doc(db, "config", "etablissement"), data);
       document.getElementById("admin-etablissement-nom").textContent = nom || "Non configuré";
       motDePasseAdmin = data.motDePasseAdmin;
       document.getElementById("etab-mdp").value = "";
