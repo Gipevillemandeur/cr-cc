@@ -207,6 +207,10 @@
       <h2>Élèves par classe</h2>
       <div id="eleves-loading" class="loading" style="display:none;">⏳ Chargement...</div>
       <div id="eleves-list"></div>
+      <div style="margin-top:12px;">
+        <button class="btn-save" onclick="sauvegarderEleves()">💾 Sauvegarder les élèves</button>
+        <div class="success-msg" id="success-eleves">✅ Élèves sauvegardés !</div>
+      </div>
     </div>
   </div>
 
@@ -612,7 +616,7 @@
     const classes = Object.keys(elevesData).sort();
 
     if (classes.length === 0) {
-      container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun élève configuré. Utilisez l'import.</p>';
+      container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun eleve configure. Utilisez l\'import.</p>';
       return;
     }
 
@@ -675,6 +679,13 @@
     delete elevesData[classe];
     await setDoc(doc(db, "config", "eleves"), elevesData);
     renderEleves();
+  };
+
+  window.sauvegarderEleves = async function() {
+    try {
+      await setDoc(doc(db, "config", "eleves"), elevesData);
+      afficherSucces("success-eleves");
+    } catch(e) { alert("Erreur : " + e.message); }
   };
 
   // ============================================================
