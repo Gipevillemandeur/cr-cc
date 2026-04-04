@@ -126,6 +126,7 @@
     <button class="tab active" onclick="switchTab('etablissement')">🏫 Établissement</button>
     <button class="tab" onclick="switchTab('classes')">📚 Classes & Profs</button>
     <button class="tab" onclick="switchTab('direction')">👤 Direction</button>
+    <button class="tab" onclick="switchTab('eleves')">🎒 Élèves</button>
   </div>
 
   <!-- Onglet Établissement -->
@@ -181,6 +182,31 @@
         <button class="btn-save" onclick="sauvegarderClasses()">💾 Sauvegarder toutes les classes</button>
         <div class="success-msg" id="success-classes">✅ Classes sauvegardées !</div>
       </div>
+    </div>
+  </div>
+
+  <!-- Onglet Élèves -->
+  <div class="tab-content" id="tab-eleves">
+    <div class="admin-panel">
+      <h2>Import des élèves par classe</h2>
+      <p style="font-size:13px;color:#5d6b7b;margin-bottom:12px;">
+        Copiez vos données depuis Excel et collez-les ici.<br>
+        Format attendu : <strong>Nom [tab] Prénom [tab] Classe</strong> (une ligne par élève)
+      </p>
+      <div class="import-zone">
+        <textarea id="import-eleves" placeholder="DUPONT	Marie	3A&#10;MARTIN	Jean	3A&#10;DURAND	Sophie	3B"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+        <button class="btn-save" onclick="importerEleves()">📥 Importer</button>
+        <span style="font-size:12px;color:#5d6b7b;">Les élèves importés remplacent ceux de la classe concernée</span>
+      </div>
+      <div class="success-msg" id="success-import-eleves">✅ Import réussi !</div>
+    </div>
+
+    <div class="admin-panel">
+      <h2>Élèves par classe</h2>
+      <div id="eleves-loading" class="loading" style="display:none;">⏳ Chargement...</div>
+      <div id="eleves-list"></div>
     </div>
   </div>
 
@@ -294,6 +320,7 @@
     await chargerConfig();
     await chargerClasses();
     await chargerDirection();
+    await chargerEleves();
   }
 
   async function chargerConfig() {
@@ -425,6 +452,8 @@
     document.getElementById(`tab-${tab}`).classList.add("active");
     event.target.classList.add("active");
   };
+  
+  window.switchTab = window.switchTab; // Exposer globalement
 
   window.ajouterClasse = function() {
     const nom = prompt("Nom de la classe (ex: 3A, 4B) :").trim().toUpperCase();
@@ -499,20 +528,24 @@
   // SAUVEGARDE
   // ============================================================
   window.sauvegarderEtablissement = async function() {
-    const nom      = document.getElementById("etab-nom").value.trim();
-    const academie = document.getElementById("etab-academie").value.trim();
-    const email    = document.getElementById("etab-email").value.trim();
-    const mdp      = document.getElementById("etab-mdp").value.trim();
+    const nom         = document.getElementById("etab-nom").value.trim();
+    const academie    = document.getElementById("etab-academie").value.trim();
+    const email       = document.getElementById("etab-email").value.trim();
+    const association = document.getElementById("etab-association") ? document.getElementById("etab-association").value.trim() : "";
+    const mdp         = document.getElementById("etab-mdp").value.trim();
 
-    const data = { nom, academie, emailGIPE: email, motDePasseAdmin: mdp || motDePasseAdmin };
+    // Vérifier que le nouveau mot de passe n'est pas vide si on veut le changer
+    const nouveauMdp = mdp || motDePasseAdmin;
+
+    const data = { nom, academie, emailGIPE: email, nomAssociation: association, motDePasseAdmin: nouveauMdp };
 
     try {
-      await setDoc(doc(db, "config", "etablissement"), data);
+      await setDoc(doc(db, "config", "etablissement"), data, { merge: true });
       document.getElementById("admin-etablissement-nom").textContent = nom || "Non configuré";
-      motDePasseAdmin = data.motDePasseAdmin;
+      motDePasseAdmin = nouveauMdp;
       document.getElementById("etab-mdp").value = "";
       afficherSucces("success-etablissement");
-    } catch(e) { alert("Erreur : " + e.message); }
+    } catch(e) { alert("Erreur sauvegarde : " + e.message); }
   };
 
   window.sauvegarderClasses = async function() {
@@ -534,6 +567,97 @@
       afficherSucces("success-direction");
     } catch(e) { alert("Erreur : " + e.message); }
   };
+
+  // ============================================================
+  //  ÉLÈVES
+  // ============================================================
+  let elevesData = {}; // { "3A": [{nom, prenom}], "3B": [...] }
+
+  async function chargerEleves() {
+    document.getElementById("eleves-loading").style.display = "block";
+    document.getElementById("eleves-list").innerHTML = "";
+    try {
+      const snap = await getDoc(doc(db, "config", "eleves"));
+      if (snap.exists()) elevesData = snap.data();
+    } catch(e) { console.error("Erreur élèves:", e); }
+    document.getElementById("eleves-loading").style.display = "none";
+    renderEleves();
+  }
+
+  function renderEleves() {
+    const container = document.getElementById("eleves-list");
+    container.innerHTML = "";
+    const classes = Object.keys(elevesData).sort();
+
+    if (classes.length === 0) {
+      container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun élève configuré. Utilisez l'import.</p>';
+      return;
+    }
+
+    classes.forEach(nom => {
+      const eleves = elevesData[nom] || [];
+      const div = document.createElement("div");
+      div.style.cssText = "border:1px solid #d6dde5;border-radius:10px;padding:14px;margin-bottom:10px;";
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <strong>Classe ${nom}</strong>
+          <span style="font-size:12px;color:#5d6b7b;">${eleves.length} élève(s)</span>
+          <button class="btn-danger" onclick="supprimerElevesClasse('${nom}')">Vider la classe</button>
+        </div>
+        <div style="font-size:12px;color:#5d6b7b;max-height:120px;overflow-y:auto;">
+          ${eleves.map(e => `${e.nom} ${e.prenom}`).join(" • ")}
+        </div>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  window.importerEleves = async function() {
+    const texte = document.getElementById("import-eleves").value.trim();
+    if (!texte) { alert("Collez vos données dans la zone d'import."); return; }
+
+    const lignes = texte.split("\n");
+    const newEleves = {};
+    let nbImport = 0;
+
+    lignes.forEach(ligne => {
+      const cols = ligne.split("\t");
+      if (cols.length < 3) return;
+      const nom    = cols[0].trim().toUpperCase();
+      const prenom = cols[1].trim();
+      const classe = cols[2].trim().toUpperCase();
+      if (!nom || !prenom || !classe) return;
+      if (!newEleves[classe]) newEleves[classe] = [];
+      newEleves[classe].push({ nom, prenom });
+      nbImport++;
+    });
+
+    // Fusionner avec les données existantes
+    Object.keys(newEleves).forEach(cls => {
+      elevesData[cls] = newEleves[cls];
+    });
+
+    try {
+      await setDoc(doc(db, "config", "eleves"), elevesData);
+      document.getElementById("import-eleves").value = "";
+      renderEleves();
+      const msg = document.getElementById("success-import-eleves");
+      msg.textContent = `✅ ${nbImport} élève(s) importé(s) !`;
+      msg.style.display = "block";
+      setTimeout(() => msg.style.display = "none", 3000);
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  window.supprimerElevesClasse = async function(classe) {
+    if (!confirm(`Supprimer tous les élèves de la classe ${classe} ?`)) return;
+    delete elevesData[classe];
+    await setDoc(doc(db, "config", "eleves"), elevesData);
+    renderEleves();
+  };
+
+  // ============================================================
+  //  FIN ÉLÈVES
+  // ============================================================
 
   function afficherSucces(id) {
     const el = document.getElementById(id);

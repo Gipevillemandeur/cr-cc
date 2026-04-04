@@ -1,91 +1,90 @@
 /**
- * Fichier : listing-eleves-data.js
- * Version : Édition interactive (Observations éditables, Nom/Prénom verrouillés)
+ * listing-eleves-data.js — Chargement depuis Firebase
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const params = new URLSearchParams(window.location.search);
+    const params    = new URLSearchParams(window.location.search);
     const className = params.get('classe');
     const trimestre = params.get('trimestre') || "Non spécifié";
-    const dateVal = params.get('date');
-    const autoPrint = params.get('print') === 'true';
+    const dateVal   = params.get('date');
 
     if (!className || className === "null" || className === "-") {
         alert("Erreur : Aucune classe sélectionnée.");
         return;
     }
 
-    // Mise à jour des titres
-    if(document.getElementById('display-classe')) document.getElementById('display-classe').textContent = className;
-    if(document.getElementById('display-trimestre')) document.getElementById('display-trimestre').textContent = trimestre;
-    if(document.getElementById('display-date')) {
-        document.getElementById('display-date').textContent = dateVal ? new Date(dateVal).toLocaleDateString('fr-FR') : "____/____/202__";
-    }
+    // Titres
+    if (document.getElementById('class-name'))  document.getElementById('class-name').textContent  = className;
+    if (document.getElementById('term-name'))   document.getElementById('term-name').textContent   = trimestre;
+    if (document.getElementById('date-info'))   document.getElementById('date-info').textContent   = dateVal || "-";
 
     const tbody = document.getElementById('listing-body');
-    if(!tbody) return;
-    
+    if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="9">Chargement des élèves...</td></tr>';
 
     try {
-        const configResp = await fetch('data/config.json');
-        const config = await configResp.json();
-        const { apiKey, spreadsheetId } = config.googleSheets;
+        // Charger depuis Firebase
+        const savedConfig = localStorage.getItem("crcc_firebase_config");
+        if (!savedConfig) throw new Error("Firebase non configuré");
 
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(className)}!A:Z?key=${apiKey}`;
-        const resp = await fetch(url);
-        const data = await resp.json();
+        const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+        const { getFirestore, doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
 
-        if (data.values && data.values.length > 0) {
-            tbody.innerHTML = ""; 
+        const app  = initializeApp(JSON.parse(savedConfig), "listing-app");
+        const db   = getFirestore(app);
+        const snap = await getDoc(doc(db, "config", "eleves"));
 
-            const headers = data.values[0].map(h => h.toLowerCase().trim());
-            const nomIdx = headers.findIndex(h => h.includes('nom'));
-            const prenomIdx = headers.findIndex(h => h.includes('prenom') || h.includes('prénom'));
+        tbody.innerHTML = "";
 
-            const colNom = nomIdx !== -1 ? nomIdx : 0;
-            const colPrenom = prenomIdx !== -1 ? prenomIdx : 1;
+        if (snap.exists()) {
+            const elevesData = snap.data();
+            const eleves     = elevesData[className] || [];
 
-            const listeEleves = data.values.slice(1);
-            
-            listeEleves.forEach((row, index) => {
-                const nom = (row[colNom] || "").trim();
-                const prenom = (row[colPrenom] || "").trim();
-                
-                if (nom || prenom) {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td class="col-nom">${nom.toUpperCase()}</td>
-                        <td class="col-prenoms">${prenom}</td>
-                        <td class="col-observations" contenteditable="true" style="background-color: #fffdf0; cursor: text;"></td>
-                        <td class="col-f" onclick="toggleCell(this)"></td>
-                        <td class="col-c" onclick="toggleCell(this)"></td>
-                        <td class="col-e" onclick="toggleCell(this)"></td>
-                        <td class="col-at" onclick="toggleCell(this)"></td>
-                        <td class="col-ac" onclick="toggleCell(this)"></td>
-                        <td class="col-aa" onclick="toggleCell(this)"></td>
-                    `;
-                    tbody.appendChild(tr);
-                }
-            });
-
-            // Lancer l'impression seulement si demandé par le bouton "Vierge"
-            if (autoPrint) {
-                setTimeout(() => { window.print(); }, 1000);
+            if (eleves.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">Aucun élève configuré pour la classe ${className}.</td></tr>`;
+                return;
             }
 
+            eleves.forEach(eleve => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="col-nom">${eleve.nom || ""}</td>
+                    <td class="col-prenoms">${eleve.prenom || ""}</td>
+                    <td class="col-observations" contenteditable="true" style="background-color:#fffdf0;cursor:text;"></td>
+                    <td class="col-f" onclick="toggleCell(this)"></td>
+                    <td class="col-c" onclick="toggleCell(this)"></td>
+                    <td class="col-e" onclick="toggleCell(this)"></td>
+                    <td class="col-at" onclick="toggleCell(this)"></td>
+                    <td class="col-ac" onclick="toggleCell(this)"></td>
+                    <td class="col-aa" onclick="toggleCell(this)"></td>
+                `;
+                tbody.appendChild(tr);
+            });
         } else {
-            tbody.innerHTML = `<tr><td colspan="9">L'onglet "${className}" est vide.</td></tr>`;
+            // Générer 32 lignes vierges si pas d'élèves configurés
+            for (let i = 0; i < 32; i++) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="col-nom"></td>
+                    <td class="col-prenoms"></td>
+                    <td class="col-observations" contenteditable="true" style="background-color:#fffdf0;cursor:text;"></td>
+                    <td class="col-f" onclick="toggleCell(this)"></td>
+                    <td class="col-c" onclick="toggleCell(this)"></td>
+                    <td class="col-e" onclick="toggleCell(this)"></td>
+                    <td class="col-at" onclick="toggleCell(this)"></td>
+                    <td class="col-ac" onclick="toggleCell(this)"></td>
+                    <td class="col-aa" onclick="toggleCell(this)"></td>
+                `;
+                tbody.appendChild(tr);
+            }
         }
 
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="9">Erreur de connexion aux données.</td></tr>`;
+        console.error("Erreur chargement élèves:", err);
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#e74c3c;">Erreur de chargement. Vérifiez la configuration Firebase.</td></tr>';
     }
 });
 
-/**
- * Fonction pour cocher/décocher une case au clic
- */
 function toggleCell(cell) {
     if (cell.textContent === "X") {
         cell.textContent = "";
