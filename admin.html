@@ -200,33 +200,19 @@
 
 </div>
 
-<!-- Firebase -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-  // Charger la config Firebase depuis localStorage
-  const savedConfig = localStorage.getItem("crcc_firebase_config");
-  if (!savedConfig) {
-    document.getElementById("login-overlay").style.display = "none";
-    document.getElementById("firebase-setup").style.display = "flex";
-    throw new Error("Firebase non configuré — affichage de la page de setup");
+<!-- Script setup Firebase (non-module pour être accessible depuis onclick) -->
+<script>
+  // Afficher la page setup si pas de config Firebase
+  if (!localStorage.getItem("crcc_firebase_config")) {
+    document.addEventListener("DOMContentLoaded", () => {
+      const loginOverlay = document.getElementById("login-overlay");
+      const setupOverlay = document.getElementById("firebase-setup");
+      if (loginOverlay) loginOverlay.style.display = "none";
+      if (setupOverlay) setupOverlay.style.display = "flex";
+    });
   }
 
-  const firebaseConfig = JSON.parse(savedConfig);
-  const app = initializeApp(firebaseConfig);
-  const db  = getFirestore(app);
-
-  // Données en mémoire
-  let classesData   = {}; // { "3A": { code: "1234", profs: [{matiere, prof}] } }
-  let directionData = []; // ["Mme GRIFFET", ...]
-  let configData    = {};
-  let motDePasseAdmin = "admin123"; // défaut
-
-  // ============================================================
-  // SETUP FIREBASE
-  // ============================================================
-  window.sauvegarderFirebaseConfig = function() {
+  function sauvegarderFirebaseConfig() {
     const apiKey        = document.getElementById("fb-apikey").value.trim();
     const authDomain    = document.getElementById("fb-authdomain").value.trim();
     const projectId     = document.getElementById("fb-projectid").value.trim();
@@ -244,14 +230,38 @@
     const config = { apiKey, authDomain, projectId, storageBucket, messagingSenderId: senderId, appId };
     localStorage.setItem("crcc_firebase_config", JSON.stringify(config));
     window.location.reload();
-  };
+  }
 
-  window.resetFirebaseConfig = function() {
+  function resetFirebaseConfig() {
     if (confirm("Réinitialiser la configuration Firebase ?")) {
       localStorage.removeItem("crcc_firebase_config");
       window.location.reload();
     }
-  };
+  }
+</script>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // Charger la config Firebase depuis localStorage
+  const savedConfig = localStorage.getItem("crcc_firebase_config");
+  if (!savedConfig) {
+    // La page setup est déjà affichée par le script non-module
+    // On arrête l'exécution du module silencieusement
+    throw new Error("stop");
+  }
+
+  const firebaseConfig = JSON.parse(savedConfig);
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  // Données en mémoire
+  let classesData   = {}; // { "3A": { code: "1234", profs: [{matiere, prof}] } }
+  let directionData = []; // ["Mme GRIFFET", ...]
+  let configData    = {};
+  let motDePasseAdmin = "admin123"; // défaut
 
   // ============================================================
   // LOGIN
