@@ -313,7 +313,7 @@
       window._logoAssociation   = null;
 
       // Déclencher le chargement une fois Firebase prêt
-      window.addEventListener("load", () => {
+      window.addEventListener("load", async () => {
         // Charger config établissement (logos, académie, email)
         try {
           const configSnap = await getDoc(doc(db, "config", "etablissement"));
