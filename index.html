@@ -231,7 +231,7 @@
               <div class="title-sub" id="header-date-p2">—</div>
             </div>
             <div class="brand">
-              <img class="logo" src="assets/logo-parents.png" alt="Logo parents delegues" />
+              <img id="logo-asso-header2" class="logo" src="assets/logo-parents.png" alt="Logo association" onerror="this.style.display='none'"/>
             </div>
           </header>
 
@@ -326,14 +326,14 @@
             // Logos — stocker en global pour jsPDF
             if (cfg.logoEtablissement) {
               window._logoEtablissement = cfg.logoEtablissement;
-              ["logo-etab-accueil","logo-etab-header"].forEach(id => {
+              ["logo-etab-accueil","logo-etab-header","logo-etab-header2"].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) { el.src = cfg.logoEtablissement; el.style.display = ""; }
               });
             }
             if (cfg.logoAssociation) {
               window._logoAssociation = cfg.logoAssociation;
-              ["logo-asso-accueil","logo-asso-header"].forEach(id => {
+              ["logo-asso-accueil","logo-asso-header","logo-asso-header2"].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) { el.src = cfg.logoAssociation; el.style.display = ""; }
               });
