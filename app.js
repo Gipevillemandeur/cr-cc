@@ -1397,28 +1397,44 @@ function verifierSauvegarde() {
     const data = JSON.parse(saved);
     if (!data.classe) return;
 
-    const date = data.date ? ` du ${formatDate(data.date)}` : "";
-    const msg  = `💾 Une saisie non terminée a été trouvée :
+    const date = data.date ? " du " + formatDate(data.date) : "";
 
-Classe ${data.classe} · ${data.trimestre}${date}
+    // Modale custom — confirm() peut être bloqué par Chrome avant interaction
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;";
+    overlay.innerHTML =
+      "<div style=\"background:#fff;border-radius:16px;padding:28px 24px;max-width:400px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);text-align:center;\">" +
+        "<div style=\"font-size:32px;margin-bottom:12px;\">💾</div>" +
+        "<div style=\"font-size:16px;font-weight:800;color:#1b1f24;margin-bottom:8px;\">Saisie non terminée</div>" +
+        "<div style=\"font-size:13px;color:#5d6b7b;margin-bottom:20px;\">" +
+          "Classe <strong>" + data.classe + "</strong> · " + data.trimestre + date + "<br>" +
+          "Voulez-vous reprendre où vous en étiez ?" +
+        "</div>" +
+        "<div style=\"display:flex;flex-direction:column;gap:10px;\">" +
+          "<button id=\"btn-sauvreprendre\" style=\"background:#1f6f8b;color:#fff;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;\">✅ Reprendre la saisie</button>" +
+          "<button id=\"btn-sauveffacer\" style=\"background:#f4f6f8;color:#5d6b7b;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;\">🗑️ Non, recommencer à zéro</button>" +
+        "</div>" +
+      "</div>";
+    document.body.appendChild(overlay);
 
-Voulez-vous la reprendre ?`;
-
-    if (confirm(msg)) {
-      // Afficher l'écran app directement
+    document.getElementById("btn-sauvreprendre").onclick = function() {
+      overlay.remove();
       document.getElementById("screen-accueil").style.display = "none";
       document.getElementById("screen-app").style.display     = "block";
       restaurerSauvegarde(data);
-    } else {
+      activerSauvegardeAuto();
+    };
+    document.getElementById("btn-sauveffacer").onclick = function() {
+      overlay.remove();
       effacerSauvegarde();
-    }
+    };
+
   } catch(e) {
     console.error("Erreur restauration sauvegarde", e);
     effacerSauvegarde();
   }
 }
 
-// Sauvegarde automatique sur chaque champ texte/number/select
 function activerSauvegardeAuto() {
   const ids = [
     "input-parents", "input-students", "input-others",
