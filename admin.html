@@ -198,6 +198,11 @@
       <h2>Élèves par classe</h2>
       <div id="eleves-loading" class="loading" style="display:none;">⏳ Chargement...</div>
       <div id="eleves-list"></div>
+      <button class="btn-add" onclick="ajouterClasseEleves()" style="margin-top:8px;">+ Ajouter une classe</button>
+      <div style="margin-top:12px;">
+        <button class="btn-save" onclick="sauvegarderElevesFirebase()">💾 Sauvegarder les élèves</button>
+        <div class="success-msg" id="success-eleves">✅ Élèves sauvegardés !</div>
+      </div>
     </div>
   </div>
 </div>
@@ -423,12 +428,7 @@ function renderEleves() {
     container.appendChild(div);
   });
 
-  // Bouton sauvegarder en bas
-  var btnSave = document.createElement("div");
-  btnSave.style.marginTop = "12px";
-  btnSave.innerHTML = '<button class="btn-save" onclick="sauvegarderElevesFirebase()">💾 Sauvegarder les élèves</button>' +
-    '<div class="success-msg" id="success-eleves" style="display:none;">✅ Élèves sauvegardés !</div>';
-  container.appendChild(btnSave);
+
 }
 
 // ============================================================
@@ -479,6 +479,13 @@ function previewLogo(input, previewId) {
     img.style.display = "block";
   };
   reader.readAsDataURL(file);
+}
+
+function ajouterClasseEleves() {
+  var nom = prompt("Nom de la classe (ex: 3A) :").trim().toUpperCase();
+  if (!nom) return;
+  if (!window.elevesData[nom]) window.elevesData[nom] = [];
+  renderEleves();
 }
 
 function ajouterEleve(classe) {
