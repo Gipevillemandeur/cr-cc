@@ -336,7 +336,7 @@ function renderDirection() {
   var container = document.getElementById("direction-list");
   container.innerHTML = "";
   if (directionData.length === 0) {
-    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun membre. Utilisez l'import ou ajoutez manuellement.</p>';
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun membre. Utilisez l\'import ou ajoutez manuellement.</p>';
     return;
   }
   directionData.forEach(function(membre, i) {
@@ -358,7 +358,7 @@ function renderEleves() {
   var classes = Object.keys(elevesData).sort();
 
   if (classes.length === 0) {
-    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun élève. Utilisez l'import ou ajoutez une classe manuellement.</p>';
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun eleve. Utilisez l\'import ou ajoutez une classe manuellement.</p>';
     return;
   }
 
