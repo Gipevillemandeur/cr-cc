@@ -372,7 +372,7 @@ classSelect.addEventListener("change", async (e) => {
     return;
   }
   if (codeAttendu && sessionStorage.getItem(`access_${classe}`) !== "granted") {
-    const codeSaisi = prompt(`Accès sécurisé GIPE.\nVeuillez entrer le code pour la classe ${classe} :`);
+    const codeSaisi = prompt(`Accès sécurisé.\nVeuillez entrer le code pour la classe ${classe} :`);
     if (codeSaisi === codeAttendu) {
       sessionStorage.setItem(`access_${classe}`, "granted");
     } else {
