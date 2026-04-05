@@ -119,12 +119,12 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Logo établissement (max 300ko)</label>
+          <label>Logo établissement (max 500ko)</label>
           <input type="file" id="etab-logo-etab" accept="image/*" onchange="previewLogo(this,'preview-etab')"/>
           <img id="preview-etab" style="max-height:60px;margin-top:6px;display:none;border-radius:6px;"/>
         </div>
         <div class="form-group">
-          <label>Logo association (max 300ko)</label>
+          <label>Logo association (max 500ko)</label>
           <input type="file" id="etab-logo-asso" accept="image/*" onchange="previewLogo(this,'preview-asso')"/>
           <img id="preview-asso" style="max-height:60px;margin-top:6px;display:none;border-radius:6px;"/>
         </div>
@@ -484,7 +484,7 @@ function supprimerDirecteur(idx) {
 function previewLogo(input, previewId) {
   var file = input.files[0];
   if (!file) return;
-  if (file.size > 300000) { alert("Image trop lourde (max 300ko)"); input.value = ""; return; }
+  if (file.size > 500000) { alert("Image trop lourde (max 500ko)"); input.value = ""; return; }
   var reader = new FileReader();
   reader.onload = function(r) {
     var img = document.getElementById(previewId);
