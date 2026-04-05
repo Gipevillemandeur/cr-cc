@@ -314,6 +314,20 @@ document.getElementById("accueil-btn-commencer").addEventListener("click", async
   document.getElementById("screen-accueil").style.display = "none";
   document.getElementById("screen-app").style.display     = "block";
 
+  // Appliquer les logos Firebase si disponibles
+  if (window._logoEtablissement) {
+    ["logo-etab-header","logo-etab-header2"].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) { el.src = window._logoEtablissement; el.style.display = ""; }
+    });
+  }
+  if (window._logoAssociation) {
+    ["logo-asso-header","logo-asso-header2"].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) { el.src = window._logoAssociation; el.style.display = ""; }
+    });
+  }
+
   // Remplir les selects cachés (pour les bindings)
   classSelect.value = classe;
   document.getElementById("input-term").value = trimestre;
