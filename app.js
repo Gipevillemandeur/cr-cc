@@ -264,21 +264,27 @@ function updateAccueilBtn() {
   const date      = document.getElementById("accueil-date").value;
 
   // Afficher/cacher le champ code selon la classe choisie
+  const noCodeMsg = document.getElementById("accueil-code-noconfig");
   if (classe) {
     const codeRaw = classCodes[classe];
     const aUnCode = codeRaw && codeRaw.toString().trim() !== "";
-    codeWrap.style.display = aUnCode ? "flex" : "none";
+    codeWrap.style.display  = aUnCode ? "flex" : "none";
+    if (noCodeMsg) noCodeMsg.style.display = (!aUnCode) ? "block" : "none";
     if (!aUnCode) { codeInput.value = ""; codeErr.style.display = "none"; }
   } else {
     codeWrap.style.display = "none";
     codeInput.value = "";
     codeErr.style.display = "none";
+    if (noCodeMsg) noCodeMsg.style.display = "none";
   }
 
-  // Activer le bouton seulement si tout est rempli
-  const tout = classe && trim && date;
+  // Activer le bouton seulement si tout est rempli ET code configuré
+  const codeRawCheck = classe ? classCodes[classe] : null;
+  const classeAUnCode = codeRawCheck && codeRawCheck.toString().trim() !== "";
+  const tout = classe && trim && date && classeAUnCode;
   btn.disabled = !tout;
   if (!classe) btn.textContent = "Sélectionnez une classe…";
+  else if (!classeAUnCode) btn.textContent = "⚠️ Code non configuré";
   else if (!trim) btn.textContent = "Sélectionnez un trimestre…";
   else if (!date) btn.textContent = "Sélectionnez une date…";
   else btn.textContent = "Commencer ➜";
@@ -296,6 +302,11 @@ document.getElementById("accueil-btn-commencer").addEventListener("click", async
 
   const codeRaw     = classCodes[classe];
   const codeAttendu = (codeRaw && codeRaw.toString().trim() !== "") ? codeRaw.toString().trim() : null;
+  // Bloquer si aucun code configuré pour cette classe
+  if (!codeAttendu) {
+    alert("⚠️ Cette classe n'a pas de code d'accès configuré. Contactez votre administrateur.");
+    return;
+  }
   if (codeAttendu && sessionStorage.getItem(`access_${classe}`) !== "granted") {
     const codeInput = document.getElementById("accueil-code");
     const codeErr   = document.getElementById("accueil-code-erreur");
@@ -355,6 +366,11 @@ classSelect.addEventListener("change", async (e) => {
   if (!classe) { applyClassSubjects([]); return; }
   const codeRaw     = classCodes[classe];
   const codeAttendu = (codeRaw && codeRaw.toString().trim() !== "") ? codeRaw.toString().trim() : null;
+  // Bloquer si aucun code configuré pour cette classe
+  if (!codeAttendu) {
+    alert("⚠️ Cette classe n'a pas de code d'accès configuré. Contactez votre administrateur.");
+    return;
+  }
   if (codeAttendu && sessionStorage.getItem(`access_${classe}`) !== "granted") {
     const codeSaisi = prompt(`Accès sécurisé GIPE.\nVeuillez entrer le code pour la classe ${classe} :`);
     if (codeSaisi === codeAttendu) {
