@@ -102,6 +102,7 @@
     <button class="tab active" onclick="switchTab('etablissement',this)">🏫 Établissement</button>
     <button class="tab" onclick="switchTab('direction',this)">👤 Direction</button>
     <button class="tab" onclick="switchTab('classes',this)">👨‍🏫 Professeurs</button>
+    <button class="tab" onclick="switchTab('codes',this)">🔑 Codes</button>
     <button class="tab" onclick="switchTab('eleves',this)">🎒 Élèves</button>
   </div>
 
@@ -162,6 +163,19 @@
       <div style="margin-top:16px;">
         <button class="btn-save" onclick="sauvegarderClasses()">💾 Sauvegarder toutes les classes</button>
         <div class="success-msg" id="success-classes">✅ Classes sauvegardées !</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Codes d'accès -->
+  <div class="tab-content" id="tab-codes">
+    <div class="admin-panel">
+      <h2>Codes d'accès par classe</h2>
+      <p style="font-size:13px;color:#5d6b7b;margin-bottom:16px;">Chaque classe doit avoir un code pour que les parents puissent y accéder. Sans code, l'accès est bloqué.</p>
+      <div id="codes-list"></div>
+      <div style="margin-top:16px;">
+        <button class="btn-save" onclick="sauvegarderClasses()">💾 Sauvegarder les codes</button>
+        <div class="success-msg" id="success-codes">✅ Codes sauvegardés !</div>
       </div>
     </div>
   </div>
@@ -304,43 +318,117 @@ function renderClasses() {
 
   if (classes.length === 0) {
     container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucune classe. Utilisez l\'import ou ajoutez manuellement.</p>';
+    renderCodes();
     return;
   }
 
+  if (!window._classesOuvertes) window._classesOuvertes = {};
+
   classes.forEach(function(nom) {
     var classe = classesData[nom];
+    var estOuvert = window._classesOuvertes[nom] === true; // fermé par défaut
+
     var div = document.createElement("div");
     div.className = "classe-item";
+    div.style.marginBottom = "8px";
 
-    var profsHtml = (classe.profs || []).map(function(p, i) {
-      return '<div class="prof-item">' +
+    // Header cliquable
+    var header = document.createElement("div");
+    header.className = "classe-header";
+    header.style.cursor = "pointer";
+    header.style.userSelect = "none";
+
+    var fleche = document.createElement("span");
+    fleche.textContent = estOuvert ? "▼" : "▶";
+    fleche.style.cssText = "font-size:11px;color:#5d6b7b;margin-right:8px;";
+
+    var titreSpan = document.createElement("div");
+    titreSpan.className = "classe-nom";
+    var nbProfs = (classe.profs || []).length;
+    titreSpan.textContent = "Classe " + nom + " — " + nbProfs + " prof(s)";
+
+    var btnSuppr = document.createElement("button");
+    btnSuppr.className = "btn-danger";
+    btnSuppr.textContent = "Supprimer";
+    btnSuppr.addEventListener("click", (function(n){ return function(e){ e.stopPropagation(); supprimerClasse(n); }; })(nom));
+
+    header.appendChild(fleche);
+    header.appendChild(titreSpan);
+    header.appendChild(btnSuppr);
+    div.appendChild(header);
+
+    // Corps repliable
+    var corps = document.createElement("div");
+    corps.style.display = estOuvert ? "block" : "none";
+    corps.style.marginTop = "8px";
+
+    header.addEventListener("click", (function(n, c, f) {
+      return function() {
+        var isOpen = c.style.display !== "none";
+        c.style.display = isOpen ? "none" : "block";
+        f.textContent = isOpen ? "▶" : "▼";
+        window._classesOuvertes[n] = !isOpen;
+      };
+    })(nom, corps, fleche));
+
+    // En-têtes colonnes
+    var cols = document.createElement("div");
+    cols.style.cssText = "display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;";
+    cols.innerHTML = '<span style="font-size:11px;color:#5d6b7b;font-weight:700;">MATIÈRE</span><span style="font-size:11px;color:#5d6b7b;font-weight:700;">PROFESSEUR</span><span></span>';
+    corps.appendChild(cols);
+
+    // Lignes profs
+    (classe.profs || []).forEach(function(p, i) {
+      var row = document.createElement("div");
+      row.className = "prof-item";
+      row.innerHTML =
         '<input type="text" value="' + (p.matiere || "") + '" placeholder="Matière" oninput="classesData[\'' + nom + '\'].profs[' + i + '].matiere=this.value"/>' +
         '<input type="text" value="' + (p.prof || "") + '" placeholder="Professeur" oninput="classesData[\'' + nom + '\'].profs[' + i + '].prof=this.value"/>' +
-        '<button class="btn-danger" onclick="supprimerProf(\'' + nom + '\',' + i + ')">✕</button>' +
-        '</div>';
-    }).join("");
+        '<button class="btn-danger" onclick="supprimerProf(\'' + nom + '\',' + i + ')">✕</button>';
+      corps.appendChild(row);
+    });
 
-    div.innerHTML =
-      '<div class="classe-header">' +
-        '<div style="display:flex;align-items:center;gap:12px;">' +
-          '<div class="classe-nom">Classe ' + nom + '</div>' +
-          '<div style="display:flex;align-items:center;gap:6px;">' +
-            '<span style="font-size:12px;color:#5d6b7b;">Code :</span>' +
-            '<input type="text" value="' + (classe.code || "") + '" placeholder="Code" style="width:80px;border:1px solid #d6dde5;border-radius:6px;padding:4px 8px;font-size:13px;" oninput="classesData[\'' + nom + '\'].code=this.value"/>' +
-          '</div>' +
-        '</div>' +
-        '<button class="btn-danger" onclick="supprimerClasse(\'' + nom + '\')">Supprimer</button>' +
-      '</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;">' +
-        '<span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;">Matière</span>' +
-        '<span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;">Professeur</span>' +
-        '<span></span>' +
-      '</div>' +
-      profsHtml +
-      '<button class="btn-add" style="font-size:12px;padding:5px 10px;" onclick="ajouterProf(\'' + nom + '\')">+ Ajouter un prof</button>';
+    var btnAjout = document.createElement("button");
+    btnAjout.className = "btn-add";
+    btnAjout.style.cssText = "font-size:12px;padding:5px 10px;margin-top:6px;";
+    btnAjout.textContent = "+ Ajouter un prof";
+    btnAjout.addEventListener("click", (function(n){ return function(){ ajouterProf(n); }; })(nom));
+    corps.appendChild(btnAjout);
 
+    div.appendChild(corps);
     container.appendChild(div);
   });
+
+  renderCodes();
+}
+
+function renderCodes() {
+  var container = document.getElementById("codes-list");
+  if (!container) return;
+  container.innerHTML = "";
+  var classes = Object.keys(classesData).sort();
+
+  if (classes.length === 0) {
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucune classe configurée dans l\'onglet Professeurs.</p>';
+    return;
+  }
+
+  var grid = document.createElement("div");
+  grid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:12px;";
+
+  classes.forEach(function(nom) {
+    var classe = classesData[nom];
+    var label = document.createElement("label");
+    label.style.cssText = "display:flex;align-items:center;gap:10px;background:#f4f6f8;border-radius:10px;padding:10px 14px;";
+    label.innerHTML =
+      '<strong style="font-size:14px;min-width:40px;">Classe ' + nom + '</strong>' +
+      '<input type="text" value="' + (classe.code || "") + '" placeholder="Code d\'accès" ' +
+        'style="flex:1;border:1px solid #d6dde5;border-radius:6px;padding:6px 10px;font-size:14px;letter-spacing:2px;" ' +
+        'oninput="classesData[\'' + nom + '\'].code=this.value"/>';
+    grid.appendChild(label);
+  });
+
+  container.appendChild(grid);
 }
 
 function renderDirection() {
@@ -370,36 +458,65 @@ function renderEleves() {
   var classes = Object.keys(window.elevesData).sort();
 
   if (classes.length === 0) {
-    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun eleve. Utilisez l\'import ou ajoutez une classe.</p>';
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun élève. Utilisez l\'import ou ajoutez une classe.</p>';
     return;
   }
 
+  // Garder l'état des sections dépliées
+  if (!window._elevesOuverts) window._elevesOuverts = {};
+
   classes.forEach(function(nom) {
     var eleves = window.elevesData[nom] || [];
+    var estOuvert = window._elevesOuverts[nom] === true; // fermé par défaut
+
     var div = document.createElement("div");
     div.className = "classe-item";
+    div.style.marginBottom = "8px";
 
-    // Header
+    // Header cliquable pour replier/déplier
     var header = document.createElement("div");
     header.className = "classe-header";
+    header.style.cssText = "cursor:pointer;user-select:none;";
+
+    var fleche = document.createElement("span");
+    fleche.textContent = estOuvert ? "▼" : "▶";
+    fleche.style.cssText = "font-size:11px;color:#5d6b7b;margin-right:8px;transition:transform 0.2s;";
+
     var titre = document.createElement("strong");
     titre.textContent = "Classe " + nom + " — " + eleves.length + " élève(s)";
+
     var btnVider = document.createElement("button");
     btnVider.className = "btn-danger";
     btnVider.textContent = "Vider la classe";
-    btnVider.addEventListener("click", (function(n){ return function(){ supprimerElevesClasse(n); }; })(nom));
+    btnVider.addEventListener("click", (function(n){ return function(e){ e.stopPropagation(); supprimerElevesClasse(n); }; })(nom));
+
+    header.appendChild(fleche);
     header.appendChild(titre);
     header.appendChild(btnVider);
     div.appendChild(header);
 
+    // Contenu repliable
+    var corps = document.createElement("div");
+    corps.style.display = estOuvert ? "block" : "none";
+    corps.style.marginTop = "8px";
+
+    header.addEventListener("click", (function(n, c, f) {
+      return function() {
+        var isOpen = c.style.display !== "none";
+        c.style.display = isOpen ? "none" : "block";
+        f.textContent = isOpen ? "▶" : "▼";
+        window._elevesOuverts[n] = !isOpen;
+      };
+    })(nom, corps, fleche));
+
     // Colonnes
     var cols = document.createElement("div");
-    cols.style.cssText = "display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;margin-top:8px;";
+    cols.style.cssText = "display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;";
     var c1 = document.createElement("span"); c1.textContent = "NOM"; c1.style.cssText = "font-size:11px;color:#5d6b7b;font-weight:700;";
     var c2 = document.createElement("span"); c2.textContent = "PRÉNOM"; c2.style.cssText = "font-size:11px;color:#5d6b7b;font-weight:700;";
     var c3 = document.createElement("span");
     cols.appendChild(c1); cols.appendChild(c2); cols.appendChild(c3);
-    div.appendChild(cols);
+    corps.appendChild(cols);
 
     // Lignes élèves — tout en createElement, événements directs
     eleves.forEach(function(e, i) {
@@ -435,7 +552,7 @@ function renderEleves() {
       row.appendChild(inp1);
       row.appendChild(inp2);
       row.appendChild(btn);
-      div.appendChild(row);
+      corps.appendChild(row);
     });
 
     // Bouton ajouter
@@ -444,8 +561,9 @@ function renderEleves() {
     btnAjouter.style.cssText = "font-size:12px;padding:5px 10px;margin-top:6px;";
     btnAjouter.textContent = "+ Ajouter un élève";
     btnAjouter.addEventListener("click", (function(n){ return function(){ ajouterEleve(n); }; })(nom));
-    div.appendChild(btnAjouter);
+    corps.appendChild(btnAjouter);
 
+    div.appendChild(corps);
     container.appendChild(div);
   });
 }
@@ -625,7 +743,7 @@ function sauvegarderDirection()     { if (window._fbSauvegarderDirection)      w
 function sauvegarderElevesFirebase(){ if (window._fbSauvegarderEleves)         window._fbSauvegarderEleves(); }
 function chargerTout() {
   renderEleves();
-  renderClasses();
+  renderClasses(); // renderCodes est appelé dans renderClasses
   renderDirection();
   if (window._fbChargerTout) {
     window._fbChargerTout();
@@ -775,6 +893,7 @@ function chargerTout() {
     try {
       await setDoc(doc(db, "config", "classes"), window.classesData);
       afficherSucces("success-classes");
+      afficherSucces("success-codes");
     } catch(e) { alert("Erreur : " + e.message); }
   };
 
