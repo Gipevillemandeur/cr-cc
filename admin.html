@@ -89,7 +89,7 @@
 <div class="admin-container" id="admin-content" style="display:none;">
   <div class="admin-header">
     <div>
-      <div class="admin-title">⚙️ Administration</div>
+      <div class="admin-title" id="admin-titre">⚙️ Administration</div>
       <div class="admin-subtitle" id="admin-etablissement-nom">Chargement...</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
@@ -493,7 +493,12 @@ function sauvegarderEtablissement() { if (window._fbSauvegarderEtablissement) wi
 function sauvegarderClasses()       { if (window._fbSauvegarderClasses)       window._fbSauvegarderClasses(); }
 function sauvegarderDirection()     { if (window._fbSauvegarderDirection)      window._fbSauvegarderDirection(); }
 function sauvegarderElevesFirebase(){ if (window._fbSauvegarderEleves)         window._fbSauvegarderEleves(); }
-function chargerTout()              { if (window._fbChargerTout)               window._fbChargerTout(); }
+function chargerTout()              { 
+  renderEleves(); // Afficher même si vide
+  renderClasses();
+  renderDirection();
+  if (window._fbChargerTout) window._fbChargerTout(); 
+}
 </script>
 
 <!-- Firebase (module séparé) -->
@@ -502,8 +507,7 @@ function chargerTout()              { if (window._fbChargerTout)               w
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   var savedConfig = localStorage.getItem("crcc_firebase_config");
-  if (!savedConfig) return; // Pas de config, le setup est affiché par le script principal
-
+  if (savedConfig) { // Seulement si Firebase est configuré
   var firebaseConfig = JSON.parse(savedConfig);
   var app = initializeApp(firebaseConfig);
   var db  = getFirestore(app);
@@ -529,7 +533,6 @@ function chargerTout()              { if (window._fbChargerTout)               w
         document.getElementById("etab-email").value       = data.emailGIPE     || "";
         document.getElementById("etab-association").value = data.nomAssociation || "";
         document.getElementById("admin-etablissement-nom").textContent = data.nom || "Non configuré";
-        document.getElementById("admin-etablissement-nom").previousElementSibling.textContent = data.nom ? ("⚙️ Administration — " + data.nom) : "⚙️ Administration";
         window.motDePasseAdmin = data.motDePasseAdmin || "admin123";
         // Logos
         if (data.logoEtablissement) {
@@ -564,6 +567,10 @@ function chargerTout()              { if (window._fbChargerTout)               w
       if (snap4.exists()) { window.elevesData = snap4.data(); }
     } catch(e) {}
     renderEleves();
+
+    // Mettre à jour le sous-titre
+    var nom = document.getElementById("etab-nom").value;
+    document.getElementById("admin-etablissement-nom").textContent = nom || "Configuration en cours...";
   };
 
   async function lireLogoBase64(inputId) {
@@ -622,6 +629,7 @@ function chargerTout()              { if (window._fbChargerTout)               w
     } catch(e) { alert("Erreur : " + e.message); }
   };
 
+  } // fin if(savedConfig)
 </script>
 </body>
 </html>
