@@ -3,207 +3,494 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Listing élèves - Conseil de classe</title>
-    <style>
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        font-family: "Source Sans 3", "Segoe UI", Arial, sans-serif;
-        padding: 20px;
-      }
-
-      .header {
-        text-align: center;
-        margin-bottom: 20px;
-      }
-
-      .header h1 {
-        margin: 0;
-        font-size: 18px;
-        text-transform: uppercase;
-      }
-
-      .header p {
-        margin: 5px 0 0 0;
-        font-size: 14px;
-        color: #666;
-      }
-
-      .listing-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 11px;
-        table-layout: fixed;
-      }
-
-      .listing-table th,
-      .listing-table td {
-        border: 1px solid #333;
-        padding: 6px 4px;
-        text-align: center;
-      }
-
-      .listing-table th {
-        background: #f0f0f0;
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 10px;
-      }
-
-      .listing-table td {
-        height: 60px;
-      }
-
-      .listing-table .col-nom {
-        width: 3cm;
-        min-width: 3cm;
-        max-width: 3cm;
-        text-align: left;
-      }
-
-      .listing-table .col-prenoms {
-        width: 3cm;
-        min-width: 3cm;
-        max-width: 3cm;
-        text-align: left;
-      }
-
-      .listing-table .col-observations {
-        width: auto;
-        text-align: left;
-      }
-
-      .listing-table .col-f,
-      .listing-table .col-c,
-      .listing-table .col-e,
-      .listing-table .col-at,
-      .listing-table .col-ac,
-      .listing-table .col-aa {
-        width: 1.2cm !important;
-        min-width: 1.2cm !important;
-        max-width: 1.2cm !important;
-        font-size: 8px !important;
-        word-break: break-word;
-        white-space: normal;
-        overflow-wrap: break-word;
-      }
-
-      .avertissements-header {
-        border-bottom: none !important;
-        padding-bottom: 2px !important;
-        font-size: 8px;
-      }
-
-      .no-print {
-        margin-bottom: 20px;
-        text-align: center;
-      }
-
-      .btn {
-        padding: 10px 20px;
-        background: #1f6f8b;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 600;
-      }
-
-      @media print {
-        body {
-          padding: 10px;
-        }
-
-        .no-print {
-          display: none;
-        }
-
-        @page {
-          size: landscape;
-          margin: 15mm;
-        }
-
-        .listing-table {
-          page-break-inside: auto;
-        }
-
-        .listing-table thead {
-          display: table-header-group;
-        }
-
-        .listing-table tr {
-          page-break-inside: avoid;
-        }
-
-        /* Force 9 lignes par page (1 header + 8 élèves) */
-        .listing-table tbody tr:nth-child(8n+9) {
-          page-break-after: always;
-        }
-      }
-    </style>
+    <title>Compte rendu - Conseil de classe</title>
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="no-print">
-      <button class="btn" onclick="window.print()">Imprimer</button>
+
+    <!-- ===================== ÉCRAN D'ACCUEIL ===================== -->
+    <div id="screen-accueil" class="accueil-overlay">
+      <div class="accueil-card">
+        <div class="accueil-logos">
+          <img id="logo-etab-accueil" src="assets/logo-academie.png" alt="Logo etablissement" class="accueil-logo" onerror="this.style.display='none'"/>
+          <img id="logo-asso-accueil" src="assets/logo-parents.png" alt="Logo association" class="accueil-logo" onerror="this.style.display='none'"/>
+        </div>
+        <h1 class="accueil-titre">Compte rendu<br>des parents délégués</h1>
+        <p class="accueil-sous-titre">Académie Orléans-Tours — Conseil de classe</p>
+        <button class="btn info" onclick="document.getElementById('help-modal').style.display='flex'" style="margin-bottom:8px;font-size:13px;padding:8px 16px;border-radius:10px;">❓ Aide / Guide d'utilisation</button>
+        <a href="admin.html" style="display:inline-block;background:#f4f6f8;color:#5d6b7b;border:1px solid #d6dde5;border-radius:10px;padding:6px 14px;font-size:12px;font-weight:600;text-decoration:none;margin-bottom:8px;">⚙️ Administration</a>
+
+        <div id="accueil-chargement" class="accueil-chargement">
+          ⏳ Chargement des données…
+        </div>
+
+        <div id="accueil-formulaire" class="accueil-form" style="display:none;">
+          <label class="field">
+            <span>Votre classe</span>
+            <select id="accueil-classe">
+              <option value="">— Sélectionner —</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Trimestre</span>
+            <select id="accueil-trim">
+              <option value="">— Sélectionner —</option>
+              <option value="Premier trimestre">Premier trimestre</option>
+              <option value="Deuxieme trimestre">Deuxième trimestre</option>
+              <option value="Troisieme trimestre">Troisième trimestre</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Date du conseil</span>
+            <input type="date" id="accueil-date" />
+          </label>
+          <div id="accueil-code-wrap" class="field" style="display:none;">
+            <span>Code d'accès</span>
+            <input type="password" id="accueil-code" placeholder="Entrez le code de votre classe" autocomplete="off" />
+            <span id="accueil-code-erreur" style="color:#d32f2f;font-size:12px;display:none;">❌ Code incorrect, veuillez réessayer.</span>
+          </div>
+          <button id="accueil-btn-commencer" class="btn primary accueil-btn" disabled>Sélectionnez une classe…</button>
+        </div>
+
+        <div id="accueil-erreur" class="accueil-erreur" style="display:none;">
+          ⚠️ Impossible de charger les données. Vérifiez votre connexion.
+        </div>
+      </div>
     </div>
 
-    <div class="header">
-      <h1>Listing élèves - Conseil de classe</h1>
-      <p id="class-info">Classe : <span id="class-name">-</span> | Trimestre : <span id="term-name">-</span> | Date : <span id="date-info">-</span></p>
+    <!-- ===================== APPLICATION PRINCIPALE ===================== -->
+    <div id="screen-app" class="app" style="display:none;">
+
+      <header class="app-header">
+        <div class="brand">
+          <img id="logo-etab-header" class="logo" src="assets/logo-academie.png" alt="Logo etablissement" onerror="this.style.display='none'"/>
+        </div>
+        <div class="title">
+          <div class="title-main">COMPTE RENDU DES PARENTS DELEGUES</div>
+          <div class="title-sub" id="preview-title">—</div>
+          <div class="title-sub" id="preview-term">—</div>
+          <div class="title-sub" id="header-date">—</div>
+        </div>
+        <div class="brand">
+          <img id="logo-asso-header" class="logo" src="assets/logo-parents.png" alt="Logo association" onerror="this.style.display='none'"/>
+        </div>
+      </header>
+
+      <!-- Onglets mobile (cachés sur desktop) -->
+      <div class="mobile-tabs" id="mobile-tabs">
+        <button class="mobile-tab active" id="tab-saisie" onclick="switchTab('saisie')">✍️ Saisie</button>
+        <button class="mobile-tab" id="tab-apercu" onclick="switchTab('apercu')">👁️ Aperçu</button>
+      </div>
+
+      <main class="grid">
+        <section class="panel form-panel">
+          <div class="panel-header">
+            <h2>Saisie</h2>
+            <div class="actions-container">
+              <div class="actions">
+                <button class="btn info" id="open-help">❓ Aide / Guide</button>
+                <button class="btn" id="listing-eleves">Listing élèves</button>
+                <button class="btn primary" id="print">📄 Générer PDF</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="field-grid">
+            <label class="field">
+              <span>Classe</span>
+              <input type="text" id="input-class-display" readonly class="field-readonly" />
+              <select id="input-class" style="display:none;"></select>
+            </label>
+            <label class="field">
+              <span>Periode / Trimestre</span>
+              <input type="text" id="input-term-display" readonly class="field-readonly" />
+              <select id="input-term" style="display:none;">
+                <option value="Premier trimestre">Premier trimestre</option>
+                <option value="Deuxieme trimestre">Deuxième trimestre</option>
+                <option value="Troisieme trimestre">Troisième trimestre</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-grid">
+            <label class="field">
+              <span>Date du conseil</span>
+              <input type="text" id="input-date-display" readonly class="field-readonly" />
+              <input type="date" id="input-date" style="display:none;" />
+            </label>
+          </div>
+
+          <div class="section" style="display: none;">
+            <button type="button" id="load-sample">Recharger les donnees</button>
+          </div>
+
+          <div class="section">
+            <h3>Président(e) séance</h3>
+            <label class="field">
+              <span>Nom(s)</span>
+              <select id="input-principal"></select>
+            </label>
+          </div>
+
+          <div class="section">
+            <h3>Equipe pédagogique</h3>
+            <div id="subjects-loading" class="subjects-loading" style="display:none;">⏳ Chargement de la classe…</div>
+            <div class="table" id="subjects-form">
+              <div class="row header">
+                <div>Matiere</div>
+                <div>Professeur(s)</div>
+                <div>Present</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Participants</h3>
+            <label class="field">
+              <span>Parents delegues</span>
+              <textarea id="input-parents" rows="2" placeholder="Noms, un par ligne"></textarea>
+            </label>
+            <label class="field">
+              <span>Eleves delegues</span>
+              <textarea id="input-students" rows="2" placeholder="Noms, un par ligne"></textarea>
+            </label>
+            <label class="field">
+              <span>Autres (preciser)</span>
+              <textarea id="input-others" rows="2" placeholder="Noms, un par ligne"></textarea>
+            </label>
+          </div>
+
+          <div class="section">
+            <h3>Synthese (nombre)</h3>
+            <div class="field-grid six">
+              <label class="field"><span>Felicitations</span><input type="number" id="input-fel" min="0" /></label>
+              <label class="field"><span>Compliments</span><input type="number" id="input-comp" min="0" /></label>
+              <label class="field"><span>Encouragements</span><input type="number" id="input-enc" min="0" /></label>
+              <label class="field"><span>Av. comportement</span><input type="number" id="input-avc" min="0" /></label>
+              <label class="field"><span>Av. travail</span><input type="number" id="input-avt" min="0" /></label>
+              <label class="field"><span>Av. assiduite</span><input type="number" id="input-ava" min="0" /></label>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Observations generales</h3>
+            <label class="field">
+              <span>Par le principal ou adjoint</span>
+              <textarea id="input-obs-principal" rows="4"></textarea>
+            </label>
+            <label class="field">
+              <span>Par le professeur principal</span>
+              <textarea id="input-obs-pp" rows="4"></textarea>
+            </label>
+            <label class="field">
+              <span>Par les eleves delegues</span>
+              <textarea id="input-obs-eleves" rows="4"></textarea>
+            </label>
+            <label class="field">
+              <span>Par les parents delegues</span>
+              <textarea id="input-obs-parents" rows="4"></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel preview-panel" id="preview">
+          <div class="preview-header">
+            <div class="preview-left">
+              <div class="preview-label">Président(e) de séance</div>
+              <div class="preview-value" id="preview-principal">-</div>
+            </div>
+          </div>
+          <div style="height: 10px;"></div>
+          <div class="preview-section">
+            <div class="preview-table">
+              <div class="row header"><div>Matiere</div><div>Professeur(s)</div><div>Present</div></div>
+              <div id="subjects-preview"></div>
+            </div>
+          </div>
+          <div style="height: 10px;"></div>
+          <div class="preview-section">
+            <div class="preview-table compact">
+              <div class="row header"><div>Parents delegues</div><div>Eleves delegues</div><div>Autres</div></div>
+              <div class="row">
+                <div class="lines" id="preview-parents">-</div>
+                <div class="lines" id="preview-students">-</div>
+                <div class="lines" id="preview-others">-</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Header page 2 — ids uniques (fix bug doublon) -->
+          <header class="app-header header-page2">
+            <div class="brand">
+              <img id="logo-etab-header2" class="logo" src="assets/logo-academie.png" alt="Logo academie" onerror="this.style.display='none'"/>
+            </div>
+            <div class="title">
+              <div class="title-main">COMPTE RENDU DES PARENTS DELEGUES</div>
+              <div class="title-sub" id="preview-title-p2">—</div>
+              <div class="title-sub" id="preview-term-p2">—</div>
+              <div class="title-sub" id="header-date-p2">—</div>
+            </div>
+            <div class="brand">
+              <img id="logo-asso-header2" class="logo" src="assets/logo-parents.png" alt="Logo association" onerror="this.style.display='none'"/>
+            </div>
+          </header>
+
+          <div class="preview-section">
+            <div class="preview-table compact synthesis">
+              <div class="row header"><div>Felicitations</div><div>Compliments</div><div>Encouragements</div></div>
+              <div class="row"><div id="preview-fel">-</div><div id="preview-comp">-</div><div id="preview-enc">-</div></div>
+              <div class="row header"><div>Av. comportement</div><div>Av. travail</div><div>Av. assiduite</div></div>
+              <div class="row"><div id="preview-avc">-</div><div id="preview-avt">-</div><div id="preview-ava">-</div></div>
+            </div>
+          </div>
+          <div class="preview-section">
+            <div class="preview-label">Observations</div>
+            <div class="preview-block"><div class="preview-block-title">Direction</div><div class="preview-text" id="preview-obs-principal">-</div></div>
+            <div class="preview-block"><div class="preview-block-title">Prof Principal</div><div class="preview-text" id="preview-obs-pp">-</div></div>
+            <div class="preview-block"><div class="preview-block-title">Eleves</div><div class="preview-text" id="preview-obs-eleves">-</div></div>
+            <div class="preview-block"><div class="preview-block-title">Parents</div><div class="preview-text" id="preview-obs-parents">-</div></div>
+          </div>
+        </section>
+      </main>
     </div>
 
-    <table class="listing-table">
-      <thead>
-        <tr>
-          <th class="col-nom">Nom</th>
-          <th class="col-prenoms">Prénom</th>
-          <th class="col-observations">Observations</th>
-          <th class="col-f">F</th>
-          <th class="col-c">C</th>
-          <th class="col-e">E</th>
-          <th class="col-at">AT</th>
-          <th class="col-ac">AC</th>
-          <th class="col-aa">AA</th>
-        </tr>
-      </thead>
-      <tbody id="listing-body">
-        <!-- Les lignes seront générées par JavaScript -->
-      </tbody>
-    </table>
+    <div id="help-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <h2>📘 Guide d'utilisation</h2>
+        <div class="help-text">
 
-    <script>
-      // Récupère les paramètres URL
-      const params = new URLSearchParams(window.location.search);
-      const className = params.get('classe') || '-';
-      const term = params.get('trimestre') || '-';
-      const date = params.get('date') || '-';
+          <p><strong>💾 Sauvegarde automatique</strong> : Vos données sont sauvegardées automatiquement à chaque modification. Si vous fermez l'onglet par accident, ne vous inquiétez pas — à la prochaine ouverture du site, il vous proposera de reprendre où vous en étiez.</p>
 
-      document.getElementById('class-name').textContent = className;
-      document.getElementById('term-name').textContent = term;
-      document.getElementById('date-info').textContent = date;
+          <p><strong>1. Écran d'accueil</strong> : Sélectionnez votre classe dans la liste, choisissez le trimestre et la date du conseil, puis entrez le code d'accès transmis par le GIPE. Cliquez sur "Commencer" — la liste des matières et des professeurs se charge automatiquement.</p>
 
-      // Génère 32 lignes vierges (4 pages × 8 lignes)
-      const tbody = document.getElementById('listing-body');
-      for (let i = 0; i < 32; i++) {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="col-nom"></td>
-          <td class="col-prenoms"></td>
-          <td class="col-observations"></td>
-          <td class="col-f"></td>
-          <td class="col-c"></td>
-          <td class="col-e"></td>
-          <td class="col-at"></td>
-          <td class="col-ac"></td>
-          <td class="col-aa"></td>
-        `;
-        tbody.appendChild(row);
+          <p><strong>2. Saisie (partie JAUNE ✍️)</strong> : Remplissez le formulaire :<br>
+          • <strong>Équipe pédagogique</strong> : par défaut tous les professeurs sont présents (✓ vert). Cliquez sur le bouton pour passer en absent (✗ rouge).<br>
+          • <strong>Participants</strong> : saisissez les noms des parents et élèves délégués, un par ligne.<br>
+          • <strong>Synthèse</strong> : indiquez le nombre de félicitations, compliments, encouragements et avertissements.<br>
+          • <strong>Observations</strong> : remplissez les blocs pour la direction, le professeur principal, les élèves et les parents.<br>
+          Tout ce que vous saisissez apparaît automatiquement dans l'aperçu gris à droite.</p>
+
+          <p><strong>3. Listing élèves</strong> : Cliquez sur ce bouton pour ouvrir une feuille de suivi par élève, imprimable, avec des cases à cocher (Félicitations, Compliments, etc.).</p>
+
+          <p><strong>4. Relecture avec le 2ème parent (optionnel) 🔗</strong> : Cliquez sur "📨 Envoyer au GIPE & télécharger" puis sur "Aperçu". Dans la fenêtre qui s'ouvre, vous verrez un lien de relecture. Copiez-le et envoyez-le au 2ème parent délégué par SMS ou email.<br>
+          Le 2ème parent ouvre le lien, consulte le compte rendu, peut le modifier si besoin, puis vous renvoie un lien.<br>
+          Quand vous recevez ce lien retour, les modifications apparaissent <span style="color:#e74c3c;text-decoration:line-through;">en rouge barré</span> et <span style="color:#27ae60;font-weight:700;">en vert</span> pour que vous puissiez les repérer facilement.</p>
+
+          <p><strong>5. Envoi 🚀</strong> : Quand le compte rendu est prêt, cliquez sur "📨 Envoyer au GIPE &amp; télécharger".<br>
+          • Si le 2ème parent n'a pas encore relu → une fenêtre vous demande si vous souhaitez d'abord lui envoyer pour relecture.<br>
+          • Cliquez sur "Non, j'envoie" → le PDF est téléchargé sur votre appareil.<br><br>
+          Une fenêtre s'ouvre ensuite avec un bouton <strong>📧 Ouvrir ma messagerie</strong> — cliquez dessus pour ouvrir votre application email avec l'adresse et l'objet déjà remplis.<br>
+          Il vous suffit alors de <strong>joindre le PDF téléchargé</strong> et d'envoyer !</p>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+      import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+      // Charger la config Firebase depuis localStorage
+      const savedConfig = localStorage.getItem("crcc_firebase_config");
+      if (!savedConfig) {
+        document.getElementById("accueil-chargement").innerHTML =
+          "⚠️ Application non configurée.<br><br><a href='admin.html' style='color:#1f6f8b;font-weight:700;font-size:15px;'>⚙️ Configurer l'application →</a>";
+        throw new Error("Firebase non configuré");
       }
+
+      const firebaseConfig = JSON.parse(savedConfig);
+      const app = initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+
+      // Exposer Firebase globalement pour app.js
+      window._firebaseDb     = db;
+      window._firebaseDoc    = doc;
+      window._firebaseGetDoc = getDoc;
+      window._emailGIPE        = "";
+      window._logoEtablissement  = null;
+      window._logoAssociation    = null;
+      window._nomAssociation     = "";
+
+      // Déclencher le chargement une fois Firebase prêt
+      window.addEventListener("load", async () => {
+        // Charger config établissement (logos, académie, email)
+        try {
+          const configSnap = await getDoc(doc(db, "config", "etablissement"));
+          if (configSnap.exists()) {
+            const cfg = configSnap.data();
+            
+            // Email
+            if (cfg.emailGIPE)     window._emailGIPE       = cfg.emailGIPE;
+            if (cfg.nomAssociation) window._nomAssociation = cfg.nomAssociation;
+            
+            // Logos — stocker en global pour jsPDF
+            if (cfg.logoEtablissement) {
+              window._logoEtablissement = cfg.logoEtablissement;
+              ["logo-etab-accueil","logo-etab-header","logo-etab-header2"].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.src = cfg.logoEtablissement; el.style.display = ""; }
+              });
+            }
+            if (cfg.logoAssociation) {
+              window._logoAssociation = cfg.logoAssociation;
+              ["logo-asso-accueil","logo-asso-header","logo-asso-header2"].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.src = cfg.logoAssociation; el.style.display = ""; }
+              });
+            }
+            
+            // Académie dans le sous-titre
+            if (cfg.academie) {
+              const el = document.getElementById("accueil-sous-titre");
+              if (el) el.textContent = cfg.academie + " — Conseil de classe";
+            }
+          }
+        } catch(e) { console.warn("Config établissement:", e); }
+
+        // Démarrer l'app une fois Firebase prêt
+        if (typeof window._demarrerApp === "function") {
+          window._demarrerApp();
+        } else {
+          // Fallback si app.js pas encore chargé
+          window.addEventListener("appready", () => window._demarrerApp());
+        }
+      });
     </script>
-    <script src="listing-eleves-data.js"></script>
+    <style>
+      /* Modale aperçu PDF */
+      #modal-apercu {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.6);
+        z-index: 20000;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+      #modal-apercu.open { display: flex; }
+      .apercu-card {
+        background: #fff;
+        border-radius: 16px;
+        padding: 24px;
+        width: 100%;
+        max-width: 560px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      }
+      .apercu-title {
+        font-size: 16px;
+        font-weight: 800;
+        margin: 0 0 16px;
+        color: #1b1f24;
+      }
+      .apercu-section {
+        margin-bottom: 12px;
+      }
+      .apercu-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #5d6b7b;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .apercu-value {
+        font-size: 13px;
+        color: #1b1f24;
+        background: #f4f6f8;
+        border-radius: 8px;
+        padding: 8px 10px;
+        white-space: pre-line;
+      }
+      .apercu-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      .apercu-table th {
+        background: #f0f4f7;
+        padding: 5px 8px;
+        text-align: left;
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #5d6b7b;
+      }
+      .apercu-table td {
+        padding: 5px 8px;
+        border-top: 1px solid #d6dde5;
+      }
+      .apercu-table .oui { color: #27ae60; font-weight: 700; }
+      .apercu-table .non { color: #e74c3c; font-weight: 700; }
+      .apercu-btns {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .apercu-btns .btn {
+        flex: 1;
+        padding: 12px;
+        font-size: 14px;
+        text-align: center;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 700;
+        border: none;
+      }
+      .btn-annuler { background: #f4f6f8; color: #5d6b7b; }
+      .btn-confirmer { background: #1f6f8b; color: #fff; }
+      .apercu-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+      .apercu-loading { color: #5d6b7b; font-size: 13px; }
+      .apercu-card { max-width: 700px; }
+    </style>
+    <!-- Modale aperçu PDF -->
+    <div id="modal-apercu">
+      <div class="apercu-card">
+        <div class="apercu-header">
+          <div class="apercu-title">📄 Aperçu du compte rendu</div>
+          <div id="apercu-loading" class="apercu-loading">⏳ Génération de l'aperçu…</div>
+        </div>
+
+        <!-- Iframe pour afficher le PDF généré -->
+        <iframe id="apercu-iframe" style="display:none; width:100%; height:60vh; border:1px solid #d6dde5; border-radius:8px; margin: 12px 0;"></iframe>
+
+        <!-- Lien de relecture -->
+        <div id="relecture-section" style="display:none; margin-bottom:12px;">
+          <div class="apercu-label" style="margin-bottom:6px;">🔗 Lien de relecture pour le 2ème parent</div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input id="relecture-url" type="text" readonly style="flex:1; border:1px solid #d6dde5; border-radius:8px; padding:8px 10px; font-size:12px; background:#f4f6f8; color:#1b1f24;"/>
+            <button class="btn" onclick="copierLienRelecture()" style="white-space:nowrap; background:#f2a541; color:#fff; border:none; padding:8px 12px; border-radius:8px; font-weight:700; cursor:pointer;">📋 Copier</button>
+          </div>
+          <div id="copie-confirmation" style="display:none; color:#27ae60; font-size:12px; margin-top:4px; font-weight:600;">✅ Lien copié !</div>
+        </div>
+
+        <div class="apercu-btns">
+          <button class="btn btn-annuler" onclick="fermerApercu()">✏️ Corriger</button>
+          <button class="btn btn-confirmer" onclick="demanderConfirmation()">📨 Envoyer au GIPE & télécharger</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modale confirmation relecture -->
+    <div id="modal-confirmation" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:30000;align-items:center;justify-content:center;padding:16px;">
+      <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:420px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);text-align:center;">
+        <div style="font-size:28px;margin-bottom:12px;">🤔</div>
+        <div style="font-size:17px;font-weight:800;color:#1b1f24;margin-bottom:8px;">Pas besoin de relecture ?</div>
+        <div style="font-size:13px;color:#5d6b7b;margin-bottom:24px;">Le 2ème parent délégué a-t-il eu l'occasion de vérifier ce compte rendu ?</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <button onclick="confirmerPDF()" style="background:#1f6f8b;color:#fff;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;">
+            📨 Non, j'envoie au GIPE et télécharge
+          </button>
+          <button onclick="revenirRelecture()" style="background:#f2a541;color:#fff;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;">
+            🔗 Si, je l'envoie d'abord au 2ème parent
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
   </body>
 </html>

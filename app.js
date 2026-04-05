@@ -1,1493 +1,755 @@
-// ============================================================
-//  ÉTAT GLOBAL
-// ============================================================
-const subjectForm    = document.getElementById("subjects-form");
-const subjectPreview = document.getElementById("subjects-preview");
-const classSelect    = document.getElementById("input-class");
-const loadSampleBtn  = document.getElementById("load-sample");
-
-let classCodes = {};
-let allClasses = [];
-let config     = {};
-
-// ============================================================
-//  UTILITAIRES
-// ============================================================
-function formatDate(value) {
-  if (!value) return "—";
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
-}
-
-function setPreview(id, text) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = text;
-  const el2 = document.getElementById(id + "-p2");
-  if (el2) el2.textContent = text;
-}
-
-function setPreviewHTML(id, html) {
-  const el = document.getElementById(id);
-  if (el) el.innerHTML = html;
-}
-
-// ============================================================
-//  BINDINGS FORMULAIRE → APERÇU
-// ============================================================
-const bindMap = [
-  ["input-class",         "preview-title",        (v) => `Conseil de classe ${v || "—"}`],
-  ["input-term",          "preview-term"],
-  ["input-date",          "header-date",           formatDate],
-  ["input-principal",     "preview-principal"],
-  ["input-parents",       "preview-parents"],
-  ["input-students",      "preview-students"],
-  ["input-others",        "preview-others"],
-  ["input-fel",           "preview-fel"],
-  ["input-comp",          "preview-comp"],
-  ["input-enc",           "preview-enc"],
-  ["input-avc",           "preview-avc"],
-  ["input-avt",           "preview-avt"],
-  ["input-ava",           "preview-ava"],
-  ["input-obs-principal", "preview-obs-principal"],
-  ["input-obs-pp",        "preview-obs-pp"],
-  ["input-obs-eleves",    "preview-obs-eleves"],
-  ["input-obs-parents",   "preview-obs-parents"],
-];
-
-function setupBindings() {
-  bindMap.forEach(([inputId, previewId, transform]) => {
-    const input   = document.getElementById(inputId);
-    const preview = document.getElementById(previewId);
-    if (!input || !preview) return;
-    const update = () => {
-      const value = input.value.trim();
-      const text  = transform ? transform(value) : value || "—";
-      if (input.tagName === "TEXTAREA") {
-        setPreviewHTML(previewId, text.replace(/\n/g, "<br>"));
-      } else {
-        setPreview(previewId, text);
-      }
-    };
-    input.addEventListener("input",  update);
-    input.addEventListener("change", update);
-    update();
-  });
-}
-
-// ============================================================
-//  TABLEAU MATIÈRES
-// ============================================================
-function createSubjectRow(values = {}) {
-  const row     = document.createElement("div");
-  row.className = "row";
-
-  const matiere = document.createElement("input");
-  matiere.value = values.matiere || "";
-  const wrapMatiere = document.createElement("div");
-  wrapMatiere.className = "cell-matiere";
-  wrapMatiere.appendChild(matiere);
-
-  const prof = document.createElement("input");
-  prof.value = values.prof || "";
-  const wrapProf = document.createElement("div");
-  wrapProf.className = "cell-prof";
-  wrapProf.appendChild(prof);
-
-  const presentBtn = document.createElement("button");
-  presentBtn.type  = "button";
-  const wrapPresence = document.createElement("div");
-  wrapPresence.className = "cell-presence";
-  wrapPresence.appendChild(presentBtn);
-
-  let isPresent = values.present === "Oui" || values.present === "";
-  const updateBtn = () => {
-    presentBtn.className   = isPresent ? "presence-btn present" : "presence-btn absent";
-    presentBtn.textContent = isPresent ? "✓" : "✗";
-  };
-  updateBtn();
-  presentBtn.addEventListener("click", () => { isPresent = !isPresent; updateBtn(); renderSubjects(); sauvegarder(); });
-
-  row.appendChild(wrapMatiere);
-  row.appendChild(wrapProf);
-  row.appendChild(wrapPresence);
-
-  matiere.addEventListener("input", renderSubjects);
-  prof.addEventListener("input",    renderSubjects);
-  row._getPresence = () => (isPresent ? "Oui" : "Non");
-  return row;
-}
-
-function renderSubjects() {
-  subjectPreview.innerHTML = "";
-  subjectForm.querySelectorAll(".row:not(.header)").forEach((row) => {
-    const inputs = row.querySelectorAll("input");
-    const previewRow = document.createElement("div");
-    previewRow.className = "row";
-    [inputs[0].value || "—", inputs[1].value || "—", row._getPresence()].forEach((text) => {
-      const cell = document.createElement("div");
-      cell.textContent = text;
-      previewRow.appendChild(cell);
-    });
-    subjectPreview.appendChild(previewRow);
-  });
-}
-
-function applyClassSubjects(entries = []) {
-  subjectForm.querySelectorAll(".row:not(.header)").forEach(r => r.remove());
-  if (entries.length === 0) {
-    subjectForm.appendChild(createSubjectRow());
-  } else {
-    entries.forEach(entry => subjectForm.appendChild(createSubjectRow(entry)));
-  }
-  renderSubjects();
-}
-
-// ============================================================
-//  CHARGEMENT À LA DEMANDE (une seule classe)
-// ============================================================
-async function loadClasseData(className) {
-  const loading = document.getElementById("subjects-loading");
-  loading.style.display = "block";
-  subjectForm.querySelectorAll(".row:not(.header)").forEach(r => r.remove());
-  try {
-    const classesDoc = await window._firebaseGetDoc(window._firebaseDoc(window._firebaseDb, "config", "classes"));
-    if (classesDoc.exists()) {
-      const classesData = classesDoc.data();
-      const classeInfo  = classesData[className];
-      if (classeInfo && classeInfo.profs) {
-        applyClassSubjects(classeInfo.profs.map(p => ({ matiere: p.matiere || "", prof: p.prof || "", present: "" })));
-      } else {
-        applyClassSubjects([]);
-      }
-    } else {
-      applyClassSubjects([]);
-    }
-  } catch (err) {
-    console.error("Erreur chargement classe :", err);
-    applyClassSubjects([]);
-  } finally {
-    loading.style.display = "none";
-  }
-}
-
-// ============================================================
-//  CHARGEMENT INITIAL (meta + liste classes + direction)
-// ============================================================
-async function loadConfig() {
-  try {
-    await loadFromFirebase();
-  } catch (err) {
-    console.error("Erreur Firebase :", err);
-    showAccueilErreur();
-  }
-}
-
-async function loadFromFirebase() {
-  const db = window._firebaseDb;
-  const getDoc = window._firebaseGetDoc;
-  const docFn  = window._firebaseDoc;
-
-  // Charger en parallèle config, classes et direction
-  const [configSnap, classesSnap, directionSnap] = await Promise.all([
-    getDoc(docFn(db, "config", "etablissement")),
-    getDoc(docFn(db, "config", "classes")),
-    getDoc(docFn(db, "config", "direction"))
-  ]);
-
-  // Direction
-  if (directionSnap.exists()) {
-    const noms = directionSnap.data().noms || [];
-    setPrincipalOptions(noms);
-  }
-
-  // Classes et codes
-  if (classesSnap.exists()) {
-    const classesData = classesSnap.data();
-    allClasses = Object.keys(classesData).sort();
-    allClasses.forEach(nom => {
-      classCodes[nom] = String(classesData[nom].code || "").trim();
-    });
-    populateClasseSelects(allClasses);
-  }
-
-  // Config établissement (email GIPE etc.)
-  if (configSnap.exists()) {
-    const data = configSnap.data();
-    if (data.emailGIPE) window._emailGIPE = data.emailGIPE;
-  }
-
-  showAccueilFormulaire();
-}
-
-function setPrincipalOptions(principals) {
-  document.getElementById("input-principal").innerHTML = '<option value="">Selectionner</option>';
-  principals.forEach(p => {
-    const opt = document.createElement("option");
-    opt.value = opt.textContent = p;
-    document.getElementById("input-principal").appendChild(opt);
-  });
-}
-
-function populateClasseSelects(classes) {
-  const accueilSelect = document.getElementById("accueil-classe");
-  accueilSelect.innerHTML = '<option value="">— Sélectionner —</option>';
-  classSelect.innerHTML   = '<option value="">Selectionner</option>';
-  classes.forEach(n => {
-    [accueilSelect, classSelect].forEach(sel => {
-      const o = document.createElement("option");
-      o.value = o.textContent = n;
-      sel.appendChild(o);
-    });
-  });
-}
-
-// ============================================================
-//  ÉCRAN D'ACCUEIL
-// ============================================================
-function showAccueilFormulaire() {
-  document.getElementById("accueil-chargement").style.display = "none";
-  document.getElementById("accueil-formulaire").style.display = "flex";
-}
-
-function showAccueilErreur() {
-  document.getElementById("accueil-chargement").style.display = "none";
-  document.getElementById("accueil-erreur").style.display     = "block";
-}
-
-function updateAccueilBtn() {
-  const btn       = document.getElementById("accueil-btn-commencer");
-  const codeWrap  = document.getElementById("accueil-code-wrap");
-  const codeInput = document.getElementById("accueil-code");
-  const codeErr   = document.getElementById("accueil-code-erreur");
-  const classe    = document.getElementById("accueil-classe").value;
-  const trim      = document.getElementById("accueil-trim").value;
-  const date      = document.getElementById("accueil-date").value;
-
-  // Afficher/cacher le champ code selon la classe choisie
-  if (classe) {
-    const codeRaw = classCodes[classe];
-    const aUnCode = codeRaw && codeRaw.toString().trim() !== "";
-    codeWrap.style.display = aUnCode ? "flex" : "none";
-    if (!aUnCode) { codeInput.value = ""; codeErr.style.display = "none"; }
-  } else {
-    codeWrap.style.display = "none";
-    codeInput.value = "";
-    codeErr.style.display = "none";
-  }
-
-  // Activer le bouton seulement si tout est rempli
-  const tout = classe && trim && date;
-  btn.disabled = !tout;
-  if (!classe) btn.textContent = "Sélectionnez une classe…";
-  else if (!trim) btn.textContent = "Sélectionnez un trimestre…";
-  else if (!date) btn.textContent = "Sélectionnez une date…";
-  else btn.textContent = "Commencer ➜";
-}
-
-document.getElementById("accueil-classe").addEventListener("change", updateAccueilBtn);
-document.getElementById("accueil-trim").addEventListener("change", updateAccueilBtn);
-document.getElementById("accueil-date").addEventListener("change", updateAccueilBtn);
-
-document.getElementById("accueil-btn-commencer").addEventListener("click", async () => {
-  const classe    = document.getElementById("accueil-classe").value;
-  const trimestre = document.getElementById("accueil-trim").value;
-  const date      = document.getElementById("accueil-date").value;
-  if (!classe) return;
-
-  const codeRaw     = classCodes[classe];
-  const codeAttendu = (codeRaw && codeRaw.toString().trim() !== "") ? codeRaw.toString().trim() : null;
-  if (codeAttendu && sessionStorage.getItem(`access_${classe}`) !== "granted") {
-    const codeInput = document.getElementById("accueil-code");
-    const codeErr   = document.getElementById("accueil-code-erreur");
-    const codeSaisi = codeInput ? codeInput.value.trim() : "";
-    if (codeSaisi === codeAttendu) {
-      sessionStorage.setItem(`access_${classe}`, "granted");
-      codeErr.style.display = "none";
-    } else {
-      if (codeErr) codeErr.style.display = "block";
-      if (codeInput) codeInput.focus();
-      return;
-    }
-  }
-
-  // Afficher l'écran app EN PREMIER
-  document.getElementById("screen-accueil").style.display = "none";
-  document.getElementById("screen-app").style.display     = "block";
-
-  // Appliquer les logos Firebase si disponibles
-  if (window._logoEtablissement) {
-    ["logo-etab-header","logo-etab-header2"].forEach(function(id) {
-      const el = document.getElementById(id);
-      if (el) { el.src = window._logoEtablissement; el.style.display = ""; }
-    });
-  }
-  if (window._logoAssociation) {
-    ["logo-asso-header","logo-asso-header2"].forEach(function(id) {
-      const el = document.getElementById(id);
-      if (el) { el.src = window._logoAssociation; el.style.display = ""; }
-    });
-  }
-
-  // Remplir les selects cachés (pour les bindings)
-  classSelect.value = classe;
-  document.getElementById("input-term").value = trimestre;
-  if (date) document.getElementById("input-date").value = date;
-
-  // Remplir les champs affichage lecture seule
-  document.getElementById("input-class-display").value = classe;
-  document.getElementById("input-term-display").value = trimestre;
-  document.getElementById("input-date-display").value = formatDate(date);
-
-  // Forcer la mise à jour de l'aperçu (les events ne se déclenchent pas sur setValue)
-  setPreview("preview-title", `Conseil de classe ${classe || "—"}`);
-  setPreview("preview-term", trimestre || "—");
-  setPreview("header-date", formatDate(date));
-
-  await loadClasseData(classe);
-  activerSauvegardeAuto();
-});
-
-// ============================================================
-//  CHANGEMENT DE CLASSE DANS LE FORMULAIRE
-// ============================================================
-classSelect.addEventListener("change", async (e) => {
-  const classe = e.target.value;
-  if (!classe) { applyClassSubjects([]); return; }
-  const codeRaw     = classCodes[classe];
-  const codeAttendu = (codeRaw && codeRaw.toString().trim() !== "") ? codeRaw.toString().trim() : null;
-  if (codeAttendu && sessionStorage.getItem(`access_${classe}`) !== "granted") {
-    const codeSaisi = prompt(`Accès sécurisé GIPE.\nVeuillez entrer le code pour la classe ${classe} :`);
-    if (codeSaisi === codeAttendu) {
-      sessionStorage.setItem(`access_${classe}`, "granted");
-    } else {
-      alert("Code incorrect !"); classSelect.value = ""; applyClassSubjects([]); return;
-    }
-  }
-  await loadClasseData(classe);
-});
-
-// ============================================================
-//  BOUTONS
-// ============================================================
-// ============================================================
-//  GÉNÉRATION PDF
-// ============================================================
-document.getElementById("print").addEventListener("click", () => ouvrirApercu());
-
-async function ouvrirApercu() {
-  // Sauvegarder la version originale dès l'ouverture (pour comparaison future)
-  const savedRaw = localStorage.getItem(SAVE_KEY);
-  if (savedRaw) localStorage.setItem(SAVE_KEY_ORIGINAL, savedRaw);
-
-  // Ouvrir la modale avec le spinner
-  document.getElementById("modal-apercu").classList.add("open");
-  document.getElementById("apercu-loading").style.display = "block";
-  document.getElementById("apercu-iframe").style.display  = "none";
-  document.getElementById("relecture-section").style.display = "none";
-
-  // Générer le PDF en mémoire et l'afficher dans l'iframe
-  try {
-    const pdfBlob = await generatePDF(true); // true = aperçu seulement, pas de téléchargement
-    const url = URL.createObjectURL(pdfBlob);
-    const iframe = document.getElementById("apercu-iframe");
-    iframe.src = url;
-    iframe.style.display = "block";
-    document.getElementById("apercu-loading").style.display = "none";
-
-    // Générer le lien de relecture
-    const lien = genererLienRelecture();
-    if (lien) {
-      document.getElementById("relecture-url").value = lien;
-      document.getElementById("relecture-section").style.display = "block";
-    }
-  } catch(e) {
-    console.error("Erreur aperçu PDF", e);
-    document.getElementById("apercu-loading").textContent = "⚠️ Erreur lors de la génération de l'aperçu.";
-  }
-}
-
-function fermerApercu() {
-  document.getElementById("modal-apercu").classList.remove("open");
-  // Libérer la mémoire de l'iframe
-  const iframe = document.getElementById("apercu-iframe");
-  if (iframe.src) URL.revokeObjectURL(iframe.src);
-  iframe.src = "";
-}
-
-function demanderConfirmation() {
-  // Si on arrive du lien retour, la relecture est déjà faite → télécharger direct
-  if (window._modeRetour) {
-    confirmerPDF();
-    return;
-  }
-  const modal = document.getElementById("modal-confirmation");
-  modal.style.display = "flex";
-}
-
-function fermerConfirmation() {
-  const modal = document.getElementById("modal-confirmation");
-  modal.style.display = "none";
-}
-
-function revenirRelecture() {
-  // Ferme la confirmation et revient à l'aperçu avec le lien de relecture visible
-  fermerConfirmation();
-  // Le lien de relecture est déjà visible dans la modale d'aperçu
-}
-
-function confirmerPDF() {
-  fermerConfirmation();
-  fermerApercu();
-  generatePDF(false); // false = télécharger
-}
-
-// ============================================================
-//  LIEN DE RELECTURE
-// ============================================================
-function collecterDonnees() {
-  return {
-    classe:       classSelect.value,
-    trimestre:    document.getElementById("input-term").value,
-    date:         document.getElementById("input-date").value,
-    principal:    document.getElementById("input-principal").value,
-    parents:      document.getElementById("input-parents").value,
-    students:     document.getElementById("input-students").value,
-    others:       document.getElementById("input-others").value,
-    fel:          document.getElementById("input-fel").value,
-    comp:         document.getElementById("input-comp").value,
-    enc:          document.getElementById("input-enc").value,
-    avc:          document.getElementById("input-avc").value,
-    avt:          document.getElementById("input-avt").value,
-    ava:          document.getElementById("input-ava").value,
-    obsPrincipal: document.getElementById("input-obs-principal").value,
-    obsPP:        document.getElementById("input-obs-pp").value,
-    obsEleves:    document.getElementById("input-obs-eleves").value,
-    obsParents:   document.getElementById("input-obs-parents").value,
-    presences:    Array.from(document.querySelectorAll("#subjects-form .row:not(.header)")).map(row => ({
-      matiere: row.querySelectorAll("input")[0]?.value || "",
-      prof:    row.querySelectorAll("input")[1]?.value || "",
-      present: row._getPresence ? row._getPresence() : "Oui"
-    }))
-  };
-}
-
-function genererLien(type) {
-  try {
-    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(collecterDonnees()))));
-    return `${window.location.origin}${window.location.pathname}?${type}=${encoded}`;
-  } catch(e) {
-    console.error("Erreur génération lien", e);
-    return null;
-  }
-}
-
-function genererLienRelecture() {
-  // Sauvegarder la version originale au moment de générer le lien
-  sauvegarder();
-  setTimeout(() => {
-    const savedRaw = localStorage.getItem(SAVE_KEY);
-    if (savedRaw) localStorage.setItem(SAVE_KEY_ORIGINAL, savedRaw);
-  }, 100);
-  return genererLien("relecture");
-}
-
-// Génère un lien retour qui embarque les données modifiées + la version originale
-function genererLienRetourAvecOriginal() {
-  try {
-    const dataModif    = collecterDonnees();
-    // Utiliser la version originale stockée lors de l'ouverture du lien relecture
-    const dataOriginal = window._donneesOriginalesParentA || null;
-
-    const payload = { modif: dataModif, original: dataOriginal };
-    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-    return `${window.location.origin}${window.location.pathname}?retour=${encoded}`;
-  } catch(e) {
-    console.error("Erreur génération lien retour", e);
-    return null;
-  }
-}
-
-function copierLienRelecture() {
-  const input = document.getElementById("relecture-url");
-  navigator.clipboard.writeText(input.value).then(() => {
-    // Sauvegarder la version originale de Parent A pour comparaison future
-    const savedRaw = localStorage.getItem(SAVE_KEY);
-    if (savedRaw) localStorage.setItem(SAVE_KEY_ORIGINAL, savedRaw);
-
-    const confirm = document.getElementById("copie-confirmation");
-    confirm.style.display = "block";
-    setTimeout(() => { confirm.style.display = "none"; }, 2500);
-  });
-}
-
-// Vérifier si on arrive depuis un lien de relecture
-// Remplir le formulaire depuis un objet data
-function remplirFormulaire(data) {
-  classSelect.value = data.classe;
-  document.getElementById("input-term").value = data.trimestre;
-  document.getElementById("input-date").value = data.date;
-  document.getElementById("input-class-display").value = data.classe;
-  document.getElementById("input-term-display").value  = data.trimestre;
-  document.getElementById("input-date-display").value  = formatDate(data.date);
-  setPreview("preview-title", `Conseil de classe ${data.classe}`);
-  setPreview("preview-term",  data.trimestre);
-  setPreview("header-date",   formatDate(data.date));
-  applyClassSubjects(data.presences || []);
-  const champs = [
-    ["input-parents", data.parents], ["input-students", data.students],
-    ["input-others", data.others], ["input-fel", data.fel],
-    ["input-comp", data.comp], ["input-enc", data.enc],
-    ["input-avc", data.avc], ["input-avt", data.avt], ["input-ava", data.ava],
-    ["input-obs-principal", data.obsPrincipal], ["input-obs-pp", data.obsPP],
-    ["input-obs-eleves", data.obsEleves], ["input-obs-parents", data.obsParents],
-  ];
-  champs.forEach(([id, val]) => {
-    const el = document.getElementById(id);
-    if (el) { el.value = val || ""; el.dispatchEvent(new Event("input")); }
-  });
-  setTimeout(() => {
-    const principalEl = document.getElementById("input-principal");
-    if (principalEl) { principalEl.value = data.principal || ""; principalEl.dispatchEvent(new Event("change")); }
-  }, 500);
-}
-
-// Afficher les différences en rouge entre version originale et version retour
-// Diff au niveau du MOT entre deux chaînes
-function diffMots(origStr, newStr) {
-  if (origStr === newStr) return origStr;
-
-  // Séparer en mots (sans les espaces dans le tableau)
-  const origMots = (origStr || "").split(" ").filter(w => w !== "");
-  const newMots  = (newStr  || "").split(" ").filter(w => w !== "");
-
-  // Algorithme LCS (Longest Common Subsequence) sur les mots
-  const m = origMots.length;
-  const n = newMots.length;
-  const dp = Array.from({length: m + 1}, () => Array(n + 1).fill(0));
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (origMots[i-1] === newMots[j-1]) {
-        dp[i][j] = dp[i-1][j-1] + 1;
-      } else {
-        dp[i][j] = Math.max(dp[i-1][j], dp[i][j-1]);
-      }
-    }
-  }
-
-  // Reconstruire le diff
-  let html = "";
-  let i = m, j = n;
-  const parts = [];
-
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && origMots[i-1] === newMots[j-1]) {
-      parts.unshift({ type: "same", val: origMots[i-1] });
-      i--; j--;
-    } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
-      parts.unshift({ type: "add", val: newMots[j-1] });
-      j--;
-    } else {
-      parts.unshift({ type: "del", val: origMots[i-1] });
-      i--;
-    }
-  }
-
-  parts.forEach((p, idx) => {
-    const space = idx < parts.length - 1 ? " " : "";
-    if (p.type === "same") html += p.val + space;
-    else if (p.type === "add") html += `<span class="diff-add">${p.val}</span>${space}`;
-    else html += `<span class="diff-del">${p.val}</span>${space}`;
-  });
-
-  return html;
-}
-
-// Diff ligne par ligne, puis mot par mot dans chaque ligne
-function diffTexte(origStr, newStr) {
-  if (origStr === newStr) return null;
-
-  const origLines = (origStr || "").split("\n");
-  const newLines  = (newStr  || "").split("\n");
-  const maxLen    = Math.max(origLines.length, newLines.length);
-  let html = "";
-
-  for (let i = 0; i < maxLen; i++) {
-    const lo = origLines[i] !== undefined ? origLines[i] : null;
-    const ln = newLines[i]  !== undefined ? newLines[i]  : null;
-
-    if (lo === null) {
-      // Ligne ajoutée
-      html += `<span class="diff-add">${ln}</span>\n`;
-    } else if (ln === null) {
-      // Ligne supprimée
-      html += `<span class="diff-del">${lo}</span>\n`;
-    } else if (lo === ln) {
-      // Ligne identique
-      html += lo + "\n";
-    } else {
-      // Ligne modifiée → diff au niveau du mot
-      html += diffMots(lo, ln) + "\n";
-    }
-  }
-
-  return html.trim();
-}
-
-function afficherDifferences(original, retour) {
-  // Champs texte multilignes
-  const champsTexte = [
-    ["input-parents", "parents"], ["input-students", "students"],
-    ["input-others", "others"], ["input-obs-principal", "obsPrincipal"],
-    ["input-obs-pp", "obsPP"], ["input-obs-eleves", "obsEleves"],
-    ["input-obs-parents", "obsParents"],
-  ];
-
-  // Champs chiffres
-  const champsChiffres = [
-    ["input-fel", "fel"], ["input-comp", "comp"], ["input-enc", "enc"],
-    ["input-avc", "avc"], ["input-avt", "avt"], ["input-ava", "ava"],
-  ];
-
-  // Champs select (principal)
-  const champsSelect = [["input-principal", "principal"]];
-
-  let nbDiffs = 0;
-
-  // Traitement des textareas — afficher le diff EN DESSOUS (textarea reste éditable)
-  champsTexte.forEach(([id, key]) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const valOrig   = (original[key] || "").trim();
-    const valRetour = (retour[key]   || "").trim();
-    if (valOrig === valRetour) return;
-
-    nbDiffs++;
-
-    const diffHtml = diffTexte(valOrig, valRetour);
-    const diffDiv  = document.createElement("div");
-    diffDiv.className = "diff-display no-print";
-    const label = '<span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px;">🔍 Modifications :</span>';
-    diffDiv.innerHTML = label + diffHtml.split("\n").join("<br>");
-    diffDiv.style.cssText = "border:1px solid #f2a541;border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;background:#fffdf0;white-space:pre-wrap;margin-top:4px;";
-    el.parentNode.insertBefore(diffDiv, el.nextSibling);
-  });
-
-  // Traitement des chiffres — afficher barré → nouveau
-  champsChiffres.forEach(([id, key]) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const valOrig   = (original[key] || "").trim();
-    const valRetour = (retour[key]   || "").trim();
-    if (valOrig === valRetour) return;
-
-    nbDiffs++;
-    const diffDiv = document.createElement("div");
-    diffDiv.className = "diff-display no-print";
-    diffDiv.innerHTML = `<span class="diff-del">${valOrig || "0"}</span> → <span class="diff-add">${valRetour || "0"}</span>`;
-    diffDiv.style.cssText = "font-size:14px;font-weight:700;margin-top:4px;";
-    el.style.opacity = "0.3";
-    el.parentNode.insertBefore(diffDiv, el.nextSibling);
-  });
-
-  // Traitement des selects
-  champsSelect.forEach(([id, key]) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const valOrig   = (original[key] || "").trim();
-    const valRetour = (retour[key]   || "").trim();
-    if (valOrig === valRetour) return;
-
-    nbDiffs++;
-    const diffDiv = document.createElement("div");
-    diffDiv.className = "diff-display no-print";
-    diffDiv.innerHTML = `<span class="diff-del">${valOrig || "—"}</span> → <span class="diff-add">${valRetour || "—"}</span>`;
-    diffDiv.style.cssText = "font-size:13px;margin-top:4px;";
-    el.parentNode.insertBefore(diffDiv, el.nextSibling);
-  });
-
-  // Comparer présences + matières + profs
-  const rows = document.querySelectorAll("#subjects-form .row:not(.header)");
-  (retour.presences || []).forEach((p, i) => {
-    const orig = (original.presences || [])[i];
-    if (!orig || !rows[i]) return;
-    const inputs = rows[i].querySelectorAll("input");
-    const btn    = rows[i].querySelector(".presence-btn");
-
-    // On va créer un wrapper sous chaque ligne pour afficher les diffs proprement
-    const hasDiffMatiere  = orig.matiere !== p.matiere;
-    const hasDiffProf     = orig.prof    !== p.prof;
-    const hasDiffPresence = orig.present !== p.present;
-
-    if (!hasDiffMatiere && !hasDiffProf && !hasDiffPresence) return;
-
-    // Diff matière — dans le wrapper matière
-    if (hasDiffMatiere && inputs[0]) {
-      const d = document.createElement("div");
-      d.className = "diff-display no-print";
-      d.innerHTML = diffMots(orig.matiere, p.matiere);
-      d.style.cssText = "font-size:11px;margin-top:3px;padding:2px 4px;border-radius:4px;background:#fffdf0;border:1px solid #f2a541;";
-      rows[i].querySelector(".cell-matiere").appendChild(d);
-      nbDiffs++;
-    }
-
-    // Diff prof — dans le wrapper prof
-    if (hasDiffProf && inputs[1]) {
-      const d = document.createElement("div");
-      d.className = "diff-display no-print";
-      d.innerHTML = diffMots(orig.prof, p.prof);
-      d.style.cssText = "font-size:11px;margin-top:3px;padding:2px 4px;border-radius:4px;background:#fffdf0;border:1px solid #f2a541;";
-      rows[i].querySelector(".cell-prof").appendChild(d);
-      nbDiffs++;
-    }
-
-    // Diff présence — ~~✓~~ ✗ ou ~~✗~~ ✓ sous le bouton
-    if (hasDiffPresence && btn) {
-      const origSymbol = orig.present === "Oui" ? "✓" : "✗";
-      const newSymbol  = p.present   === "Oui" ? "✓" : "✗";
-      const d = document.createElement("div");
-      d.className = "diff-display no-print";
-      d.innerHTML = `<span class="diff-del">${origSymbol}</span> <span class="diff-add">${newSymbol}</span>`;
-      d.style.cssText = "font-size:14px;font-weight:700;text-align:center;margin-top:3px;line-height:1;";
-      rows[i].querySelector(".cell-presence").appendChild(d);
-      nbDiffs++;
-    }
-  });
-
-  return nbDiffs;
-}
-
-function verifierLienRelecture() {
-  const params  = new URLSearchParams(window.location.search);
-  const encodedRelecture = params.get("relecture");
-  const encodedRetour    = params.get("retour");
-
-  // ---- MODE RELECTURE (Parent B) ----
-  if (encodedRelecture) {
-    try {
-      const data = JSON.parse(decodeURIComponent(escape(atob(encodedRelecture))));
-      if (!data.classe) return false;
-
-      // Stocker la version originale dans une variable globale
-      // pour l'embarquer dans le lien retour
-      window._donneesOriginalesParentA = data;
-
-      document.getElementById("screen-accueil").style.display = "none";
-      document.getElementById("screen-app").style.display     = "block";
-      remplirFormulaire(data);
-
-      // Activer la sauvegarde auto pour Parent B (pour capturer ses modifs)
-      activerSauvegardeAuto();
-
-      // Afficher bannière relecture sur le formulaire
-      const banniereB = document.createElement("div");
-      banniereB.style.cssText = "background:#fff3cd;border:1px solid #f2a541;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;font-weight:600;color:#856404;display:flex;align-items:center;gap:10px;";
-      banniereB.innerHTML = `<span style="font-size:20px">👁️</span><span><strong>Mode relecture</strong> — Vérifiez et modifiez si besoin. Quand vous avez terminé, cliquez sur "📄 Générer PDF" pour envoyer vos modifications au parent rédacteur.</span>`;
-      document.querySelector(".app").insertBefore(banniereB, document.querySelector(".grid"));
-
-      // Modifier le bouton PDF pour qu'en mode relecture il génère un lien ?retour=
-      document.getElementById("print").removeEventListener("click", ouvrirApercu);
-      document.getElementById("print").onclick = () => {
-        // Fermer la modale d'aperçu si elle est ouverte
-        fermerApercu();
-
-        // Générer le lien retour avec les données ACTUELLES + version originale pour comparaison
-        const lienRetour = genererLienRetourAvecOriginal();
-        if (!lienRetour) return;
-
-        // Afficher une mini modale de partage
-        const overlay = document.createElement("div");
-        overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:30000;display:flex;align-items:center;justify-content:center;padding:16px;";
-        overlay.innerHTML = `
-          <div style="background:#fff;border-radius:16px;padding:24px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
-            <div style="font-size:16px;font-weight:800;margin-bottom:12px;">📤 Envoyer au parent rédacteur</div>
-            <p style="font-size:13px;color:#5d6b7b;margin-bottom:12px;">Copiez ce lien et envoyez-le au 1er parent. Il verra vos modifications surlignées en rouge.</p>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-              <input id="retour-url-final" type="text" readonly value="${lienRetour}" style="flex:1;border:1px solid #d6dde5;border-radius:8px;padding:8px 10px;font-size:11px;background:#f4f6f8;"/>
-              <button id="btn-copier-retour" style="background:#e74c3c;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap;">📋 Copier</button>
-            </div>
-            <div id="retour-copie-ok" style="display:none;color:#27ae60;font-size:12px;font-weight:600;margin-bottom:8px;">✅ Lien copié ! Vous pouvez fermer cette fenêtre.</div>
-            <button onclick="this.closest('div[style]').remove()" style="width:100%;padding:11px;background:#f4f6f8;color:#5d6b7b;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;">✖ Fermer</button>
-          </div>
-        `;
-        document.body.appendChild(overlay);
-
-        // Bouton copier
-        document.getElementById("btn-copier-retour").onclick = () => {
-          navigator.clipboard.writeText(lienRetour).then(() => {
-            effacerSauvegarde(); // Effacer le storage de Parent B
-            document.getElementById("retour-copie-ok").style.display = "block";
-          });
-        };
-      };
-
-      return true;
-    } catch(e) {
-      console.error("Erreur relecture", e);
-      return false;
-    }
-  }
-
-  // ---- MODE RETOUR (Parent A reçoit les modifications) ----
-  if (encodedRetour) {
-    try {
-      const payload = JSON.parse(decodeURIComponent(escape(atob(encodedRetour))));
-
-      // Supporter les deux formats : {modif, original} ou directement les données
-      const dataRetour = payload.modif || payload;
-      const original   = payload.original || null;
-
-      if (!dataRetour.classe) return false;
-
-      document.getElementById("screen-accueil").style.display = "none";
-      document.getElementById("screen-app").style.display     = "block";
-
-      // Marquer qu'on est en mode retour (relecture déjà faite)
-      window._modeRetour = true;
-
-      // Désactiver la sauvegarde auto pendant le remplissage
-      window._sauvegardeDesactivee = true;
-
-      // Remplir avec la version retour
-      remplirFormulaire(dataRetour);
-
-      // Réactiver la sauvegarde auto après le remplissage
-      setTimeout(() => {
-        window._sauvegardeDesactivee = false;
-        activerSauvegardeAuto();
-      }, 1000);
-
-      // Afficher les différences après rendu
-      setTimeout(() => {
-        const nbDiffs = original ? afficherDifferences(original, dataRetour) : 0;
-
-        // Bannière
-        const banniere = document.createElement("div");
-        banniere.style.cssText = "border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;";
-        if (nbDiffs > 0) {
-          banniere.style.background = "#fdecea";
-          banniere.style.border     = "1px solid #e74c3c";
-          banniere.style.color      = "#c0392b";
-          banniere.innerHTML = `<span style="font-size:20px">✏️</span><span><strong>${nbDiffs} modification(s)</strong> apportée(s) par le 2ème parent sont surlignées en rouge. Vérifiez et générez le PDF quand vous êtes prêt.</span>`;
-        } else {
-          banniere.style.background = "#d4edda";
-          banniere.style.border     = "1px solid #27ae60";
-          banniere.style.color      = "#155724";
-          banniere.innerHTML = `<span style="font-size:20px">✅</span><span><strong>Aucune modification</strong> — Le 2ème parent a validé le compte rendu tel quel. Vous pouvez générer le PDF.`;
-        }
-        document.querySelector(".app").insertBefore(banniere, document.querySelector(".grid"));
-      }, 900);
-
-      return true;
-    } catch(e) {
-      console.error("Erreur retour", e);
-      return false;
-    }
-  }
-
-  return false;
-}
-
-function copierLienRetour() {
-  const input = document.getElementById("retour-url");
-  if (!input) return;
-  navigator.clipboard.writeText(input.value).then(() => {
-    // Effacer le storage de Parent B
-    effacerSauvegarde();
-    const confirm = document.getElementById("copie-retour-confirm");
-    if (confirm) { confirm.style.display = "block"; setTimeout(() => { confirm.style.display = "none"; }, 2500); }
-  });
-}
-
-async function imageToBase64(url) {
-  const resp = await fetch(url);
-  const blob = await resp.blob();
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function generatePDF(apercuSeulement = false) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
-
-  const classe    = classSelect.value || "-";
-  const trimestre = document.getElementById("input-term").value || "-";
-  const date      = formatDate(document.getElementById("input-date").value);
-  const principal = document.getElementById("input-principal").value || "-";
-  const parents   = document.getElementById("input-parents").value || "-";
-  const students  = document.getElementById("input-students").value || "-";
-  const others    = document.getElementById("input-others").value || "-";
-  const fel       = document.getElementById("input-fel").value || "-";
-  const comp      = document.getElementById("input-comp").value || "-";
-  const enc       = document.getElementById("input-enc").value || "-";
-  const avc       = document.getElementById("input-avc").value || "-";
-  const avt       = document.getElementById("input-avt").value || "-";
-  const ava       = document.getElementById("input-ava").value || "-";
-  const obsPrincipal = document.getElementById("input-obs-principal").value || "-";
-  const obsPP        = document.getElementById("input-obs-pp").value || "-";
-  const obsEleves    = document.getElementById("input-obs-eleves").value || "-";
-  const obsParents   = document.getElementById("input-obs-parents").value || "-";
-
-  const pageW = 210;
-  const pageH = 297;
-  const margin = 12;
-  const colW = pageW - margin * 2;
-
-  // Couleurs
-  const colorAccent  = [31, 111, 139];   // #1f6f8b
-  const colorMuted   = [93, 107, 123];   // #5d6b7b
-  const colorLine    = [214, 221, 229];  // #d6dde5
-  const colorHeader  = [240, 244, 247];  // #f0f4f7
-  const colorInk     = [27, 31, 36];     // #1b1f24
-
-  // ---- Fonction utilitaires ----
-  function drawHeader(yStart, logoAcad, logoParents) {
-    // Fond header
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(...colorLine);
-    doc.roundedRect(margin, yStart, colW, 28, 3, 3, "FD");
-
-    // Logo academie (gauche)
-    if (logoAcad) {
-      doc.addImage(logoAcad, "PNG", margin + 2, yStart + 2, 22, 22);
-    }
-
-    // Logo parents (droite)
-    if (logoParents) {
-      doc.addImage(logoParents, "PNG", pageW - margin - 24, yStart + 2, 22, 22);
-    }
-
-    // Titre centre
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(...colorInk);
-    doc.text("COMPTE RENDU DES PARENTS DELEGUES", pageW / 2, yStart + 8, { align: "center" });
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(...colorAccent);
-    doc.text(`Conseil de classe ${classe} - ${trimestre}`, pageW / 2, yStart + 15, { align: "center" });
-
-    doc.setTextColor(...colorMuted);
-    doc.text(date, pageW / 2, yStart + 21, { align: "center" });
-
-    return yStart + 32;
-  }
-
-  function drawSectionTitle(text, y) {
-    doc.setFillColor(...colorAccent);
-    doc.rect(margin, y, colW, 6, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(255, 255, 255);
-    doc.text(text.toUpperCase(), margin + 3, y + 4);
-    return y + 8;
-  }
-
-  function drawTableHeader(cols, y, heights = 6, centered = false) {
-    doc.setFillColor(...colorHeader);
-    doc.setDrawColor(...colorLine);
-    doc.rect(margin, y, colW, heights, "FD");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    doc.setTextColor(...colorMuted);
-    let x = margin;
-    cols.forEach(([label, w]) => {
-      if (centered) {
-        doc.text(label.toUpperCase(), x + w / 2, y + 4.5, { align: "center" });
-      } else {
-        doc.text(label.toUpperCase(), x + 2, y + 4.5);
-      }
-      x += w;
-    });
-    return y + heights;
-  }
-
-  function drawTableRow(cells, y, rowH = 7, bg = null) {
-    if (bg) { doc.setFillColor(...bg); doc.rect(margin, y, colW, rowH, "F"); }
-    doc.setDrawColor(...colorLine);
-    doc.rect(margin, y, colW, rowH);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(...colorInk);
-    let x = margin;
-    cells.forEach(([text, w, align]) => {
-      const lines = doc.splitTextToSize(text || "-", w - 2);
-      if (align === "center") {
-        doc.text(lines[0], x + w / 2, y + rowH / 2 + 1, { align: "center" });
-      } else {
-        doc.text(lines[0], x + 2, y + rowH / 2 + 1);
-      }
-      x += w;
-    });
-    return y + rowH;
-  }
-
-  function drawTextBlock(title, text, y) {
-    const lines = doc.splitTextToSize(text || "-", colW - 6);
-    const blockH = Math.max(14, lines.length * 4 + 8);
-
-    // Verifier si on depasse la page
-    if (y + blockH > pageH - margin) {
-      doc.addPage();
-      y = drawHeader(margin) + 4;
-    }
-
-    doc.setDrawColor(...colorLine);
-    doc.setFillColor(250, 251, 252);
-    doc.roundedRect(margin, y, colW, blockH, 2, 2, "FD");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    doc.setTextColor(...colorMuted);
-    doc.text(title.toUpperCase(), margin + 3, y + 4);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(...colorInk);
-    doc.text(lines, margin + 3, y + 9);
-    return y + blockH + 3;
-  }
-
-  // Chargement des logos depuis Firebase (stockés en base64) ou fichiers par défaut
-  let logoAcad    = window._logoEtablissement || null;
-  let logoParents = window._logoAssociation   || null;
-  // Fallback sur les fichiers PNG si pas de logo Firebase
-  if (!logoAcad) {
-    try { logoAcad    = await imageToBase64("assets/logo-academie.png");  } catch(e) {}
-  }
-  if (!logoParents) {
-    try { logoParents = await imageToBase64("assets/logo-parents.png"); } catch(e) {}
-  }
-
-  // ============ PAGE 1 ============
-  let y = margin;
-  y = drawHeader(y, logoAcad, logoParents);
-  y += 2;
-
-  // President de seance
-  y = drawSectionTitle("President(e) de seance", y);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(...colorInk);
-  doc.text(principal, margin + 3, y + 4);
-  y += 8;
-
-  // Equipe pedagogique
-  y = drawSectionTitle("Equipe pedagogique", y);
-  const colsProfs = [["Matiere", 70], ["Professeur(s)", 100], ["Present", 16]];
-  y = drawTableHeader(colsProfs, y);
-
-  const rows = document.querySelectorAll("#subjects-form .row:not(.header)");
-  rows.forEach((row, i) => {
-    const inputs   = row.querySelectorAll("input");
-    const presence = row._getPresence ? row._getPresence() : "Oui";
-    const bg = i % 2 === 0 ? [255,255,255] : [248, 250, 252];
-    const presColor = presence === "Oui" ? [39, 174, 96] : [231, 76, 60];
-
-    // Fond de la ligne
-    doc.setFillColor(...bg);
-    doc.setDrawColor(...colorLine);
-    doc.rect(margin, y, colW, 6, "FD");
-
-    // Matiere et prof
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...colorInk);
-    doc.text(doc.splitTextToSize(inputs[0]?.value || "-", 67)[0], margin + 2, y + 4);
-    doc.text(doc.splitTextToSize(inputs[1]?.value || "-", 95)[0], margin + 73, y + 4);
-
-    // Present en couleur (sans doublon)
-    doc.setTextColor(...presColor);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.text(presence, pageW - margin - 8, y + 4, { align: "center" });
-
-    y += 6;
-  });
-  doc.setTextColor(...colorInk);
-  doc.setFont("helvetica", "normal");
-
-  y += 4;
-
-  // Participants
-  y = drawSectionTitle("Participants", y);
-  const colsPart = [["Parents delegues", 62], ["Eleves delegues", 62], ["Autres", 62]];
-  y = drawTableHeader(colsPart, y);
-
-  const maxLines = Math.max(
-    parents.split("\n").length,
-    students.split("\n").length,
-    others.split("\n").length,
-    1
-  );
-  const partH = Math.max(10, maxLines * 4 + 4);
-  doc.setFillColor(255,255,255);
-  doc.setDrawColor(...colorLine);
-  doc.rect(margin, y, colW, partH, "FD");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(...colorInk);
-  const col1x = margin + 2;
-  const col2x = margin + 62 + 2;
-  const col3x = margin + 124 + 2;
-  doc.text(doc.splitTextToSize(parents, 58), col1x, y + 4);
-  doc.text(doc.splitTextToSize(students, 58), col2x, y + 4);
-  doc.text(doc.splitTextToSize(others, 58), col3x, y + 4);
-  y += partH + 4;
-
-  // ============ PAGE 2 ============
-  doc.addPage();
-  y = margin;
-  y = drawHeader(y, logoAcad, logoParents);
-  y += 4;
-
-  // Synthese
-  y = drawSectionTitle("Synthese", y);
-  const colsSynth = [["Felicitations", 31], ["Compliments", 31], ["Encouragements", 31], ["Av. comportement", 31], ["Av. travail", 31], ["Av. assiduite", 31]];
-  y = drawTableHeader(colsSynth, y, 6, true);
-  y = drawTableRow([
-    [fel, 31, "center"], [comp, 31, "center"], [enc, 31, "center"],
-    [avc, 31, "center"], [avt, 31, "center"], [ava, 31, "center"]
-  ], y, 8);
-  y += 6;
-
-  // Observations
-  y = drawSectionTitle("Observations generales", y);
-  y += 4;
-  y = drawTextBlock("Direction / Principal(e)", obsPrincipal, y);
-  y = drawTextBlock("Professeur principal", obsPP, y);
-  y = drawTextBlock("Eleves delegues", obsEleves, y);
-  y = drawTextBlock("Parents delegues", obsParents, y);
-
-  // Sauvegarde
-  const nomFichier = `Compte-rendu_${classe}_${trimestre}`.replace(/\s+/g, "_");
-
-  if (apercuSeulement) {
-    // Retourner un Blob pour l'afficher dans l'iframe
-    return doc.output("blob");
-  } else {
-    // Envoyer au GIPE via Google Apps Script
-    await envoyerAuGIPE(doc, classe, trimestre, formatDate(document.getElementById("input-date").value), nomFichier);
-    effacerSauvegarde();
-  }
-}
-
-// ============================================================
-//  ENVOI AU GIPE
-// ============================================================
-const GIPE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyE-vzGYC1vkDfs8PeUK7Y-Vzx8HvMOqXWtT_aYejBsz1VNqB2zcvbwDrkDCI7p2DxPDQ/exec";
-
-// Détecter si on est sur mobile
-function estMobile() {
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-}
-
-async function envoyerAuGIPE(doc, classe, trimestre, date, nomFichier) {
-  // Vérifier qu'une adresse email est configurée
-  if (!window._emailGIPE) {
-    doc.save(nomFichier + ".pdf");
-    alert("⚠️ Aucune adresse email de destination configurée. Le PDF a été téléchargé. Configurez l'email dans le panneau d'administration.");
-    effacerSauvegarde();
-    return;
-  }
-
-  // Télécharger le PDF sur l'appareil (toujours, desktop et mobile)
-  doc.save(nomFichier + ".pdf");
-
-  // Afficher overlay
-  const overlay = document.createElement("div");
-  overlay.id = "envoi-overlay";
-  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:50000;display:flex;align-items:center;justify-content:center;";
-  overlay.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
-      <div id="envoi-icone" style="font-size:40px;margin-bottom:12px;">⏳</div>
-      <div id="envoi-titre" style="font-size:17px;font-weight:800;color:#1b1f24;margin-bottom:8px;">Envoi en cours...</div>
-      <div id="envoi-message" style="font-size:13px;color:#5d6b7b;line-height:1.5;"></div>
-      <div id="envoi-action" style="margin-top:16px;"></div>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Administration - CR-CC</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    body { background: radial-gradient(circle at top, #f7f2ea 0%, #f4f6f8 48%); min-height: 100vh; padding: 20px; }
+    .admin-container { max-width: 900px; margin: 0 auto; }
+    .admin-header { background: #fff; border-radius: 16px; padding: 20px 24px; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.07); display: flex; align-items: center; justify-content: space-between; }
+    .admin-title { font-size: 20px; font-weight: 800; color: #1b1f24; }
+    .admin-subtitle { color: #5d6b7b; font-size: 13px; margin-top: 4px; }
+    .admin-panel { background: #fff; border-radius: 16px; padding: 24px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+    .admin-panel h2 { font-size: 16px; font-weight: 800; margin: 0 0 16px; color: #1b1f24; border-bottom: 2px solid #f0f4f7; padding-bottom: 10px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group label { font-size: 12px; color: #5d6b7b; font-weight: 600; text-transform: uppercase; }
+    .form-group input, .form-group textarea { border: 1px solid #d6dde5; border-radius: 8px; padding: 9px 12px; font-size: 14px; font-family: inherit; width: 100%; box-sizing: border-box; }
+    .btn-save { background: #1f6f8b; color: #fff; border: none; border-radius: 10px; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .btn-danger { background: #e74c3c; color: #fff; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-add { background: #27ae60; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 8px; }
+    .classe-item { border: 1px solid #d6dde5; border-radius: 10px; padding: 14px; margin-bottom: 10px; background: #f8fafc; }
+    .classe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+    .classe-nom { font-weight: 800; font-size: 15px; color: #1b1f24; }
+    .prof-item { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .prof-item input { border: 1px solid #d6dde5; border-radius: 6px; padding: 6px 8px; font-size: 13px; width: 100%; }
+    .direction-item { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .direction-item input { border: 1px solid #d6dde5; border-radius: 6px; padding: 6px 8px; font-size: 13px; width: 100%; }
+    .success-msg { background: #d4edda; border: 1px solid #27ae60; color: #155724; border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: 600; margin-top: 10px; display: none; }
+    .login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+    .login-card { background: #fff; border-radius: 16px; padding: 32px; max-width: 420px; width: 90%; text-align: center; }
+    .login-card h2 { margin: 0 0 8px; font-size: 20px; }
+    .login-card p { color: #5d6b7b; font-size: 13px; margin-bottom: 20px; }
+    .login-card input { width: 100%; border: 1px solid #d6dde5; border-radius: 10px; padding: 10px 14px; font-size: 16px; text-align: center; box-sizing: border-box; margin-bottom: 12px; }
+    .login-card .btn-save { width: 100%; padding: 12px; }
+    .login-error { color: #e74c3c; font-size: 13px; margin-top: 8px; display: none; }
+    .import-zone { border: 2px dashed #d6dde5; border-radius: 10px; padding: 16px; margin-bottom: 12px; background: #f8fafc; }
+    .import-zone textarea { border: none; background: transparent; width: 100%; font-size: 12px; font-family: monospace; min-height: 100px; resize: vertical; box-sizing: border-box; }
+    .import-zone p { margin: 0 0 8px; font-size: 12px; color: #5d6b7b; }
+    .tabs { display: flex; gap: 0; margin-bottom: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #d6dde5; }
+    .tab { flex: 1; padding: 11px; text-align: center; font-size: 13px; font-weight: 700; cursor: pointer; background: #fff; color: #5d6b7b; border: none; }
+    .tab.active { background: #1f6f8b; color: #fff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .loading { text-align: center; color: #5d6b7b; padding: 20px; }
+    .firebase-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } .prof-item { grid-template-columns: 1fr auto; } .firebase-grid { grid-template-columns: 1fr; } .tabs { flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+
+<!-- Page setup Firebase -->
+<div id="firebase-setup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:none;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:32px 24px;max-width:540px;width:90%;max-height:90vh;overflow-y:auto;">
+    <div style="text-align:center;font-size:36px;margin-bottom:12px;">🔥</div>
+    <h2 style="text-align:center;margin:0 0 8px;">Configuration Firebase</h2>
+    <p style="color:#5d6b7b;font-size:13px;margin-bottom:20px;text-align:center;">
+      Entrez les clés de votre projet Firebase.<br>
+      Trouvez-les dans <a href="https://console.firebase.google.com" target="_blank" style="color:#1f6f8b;">console.firebase.google.com</a> → Paramètres → Vos applications → SDK Web
+    </p>
+    <div class="firebase-grid">
+      <div class="form-group" style="grid-column:1/-1;"><label>API Key *</label><input type="text" id="fb-apikey" placeholder="AIzaSy..."/></div>
+      <div class="form-group"><label>Auth Domain *</label><input type="text" id="fb-authdomain" placeholder="projet.firebaseapp.com"/></div>
+      <div class="form-group"><label>Project ID *</label><input type="text" id="fb-projectid" placeholder="mon-projet"/></div>
+      <div class="form-group"><label>Storage Bucket</label><input type="text" id="fb-storagebucket" placeholder="projet.firebasestorage.app"/></div>
+      <div class="form-group"><label>Messaging Sender ID</label><input type="text" id="fb-senderid" placeholder="123456789"/></div>
+      <div class="form-group" style="grid-column:1/-1;"><label>App ID *</label><input type="text" id="fb-appid" placeholder="1:123456789:web:abc123"/></div>
     </div>
-  `;
-  document.body.appendChild(overlay);
+    <button class="btn-save" style="width:100%;padding:12px;font-size:15px;" onclick="sauvegarderFirebaseConfig()">🔥 Connecter et continuer</button>
+    <div id="firebase-error" style="color:#e74c3c;font-size:13px;margin-top:8px;display:none;text-align:center;"></div>
+  </div>
+</div>
 
-  if (estMobile()) {
-    // Sur mobile : PDF téléchargé + ouvrir l'appli mail pré-remplie
-    const sujet    = encodeURIComponent(`Compte rendu conseil de classe - ${classe} - ${trimestre}${date ? " - " + date : ""}`);
-    const corps    = encodeURIComponent(`Bonjour,
+<!-- Login -->
+<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
+  <div class="login-card">
+    <div style="font-size:36px;margin-bottom:12px;">🔐</div>
+    <h2>Administration</h2>
+    <p>Entrez le mot de passe administrateur.</p>
+    <input type="password" id="login-password" placeholder="Mot de passe" onkeydown="if(event.key==='Enter') verifierMotDePasse()"/>
+    <button class="btn-save" onclick="verifierMotDePasse()">Accéder</button>
+    <div class="login-error" id="login-error">❌ Mot de passe incorrect</div>
+    <div style="margin-top:16px;"><a href="index.html" style="color:#5d6b7b;font-size:13px;">← Retour à l'application</a></div>
+  </div>
+</div>
 
-Veuillez trouver ci-joint le compte rendu du conseil de classe ${classe} pour le ${trimestre}${date ? " du " + date : ""}.
+<!-- Admin -->
+<div class="admin-container" id="admin-content" style="display:none;">
+  <div class="admin-header">
+    <div>
+      <div class="admin-title" id="admin-titre">⚙️ Administration</div>
+      <div class="admin-subtitle" id="admin-etablissement-nom">Chargement...</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button onclick="resetFirebaseConfig()" style="background:none;border:1px solid #d6dde5;border-radius:8px;padding:6px 10px;font-size:11px;color:#5d6b7b;cursor:pointer;">🔄 Firebase</button>
+      <a href="index.html" class="btn-save" style="text-decoration:none;font-size:13px;">← Retour</a>
+    </div>
+  </div>
 
-Ce document a été généré automatiquement par l'application de compte rendu des parents délégués.
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('etablissement',this)">🏫 Établissement</button>
+    <button class="tab" onclick="switchTab('direction',this)">👤 Direction</button>
+    <button class="tab" onclick="switchTab('classes',this)">👨‍🏫 Professeurs</button>
+    <button class="tab" onclick="switchTab('eleves',this)">🎒 Élèves</button>
+  </div>
 
-Cordialement,
-Les parents délégués`);
-    const mailtoUrl = `mailto:${window._emailGIPE || ""}?subject=${sujet}&body=${corps}`;
+  <!-- Établissement -->
+  <div class="tab-content active" id="tab-etablissement">
+    <div class="admin-panel">
+      <h2>Informations de l'établissement</h2>
+      <div class="form-row">
+        <div class="form-group"><label>Nom de l'établissement</label><input type="text" id="etab-nom" placeholder="Collège..."/></div>
+        <div class="form-group"><label>Académie</label><input type="text" id="etab-academie" placeholder="Académie de..."/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Nom de l'association (GIPE, APE...)</label><input type="text" id="etab-association" placeholder="APE..."/></div>
+        <div class="form-group"><label>Email de destination</label><input type="email" id="etab-email" placeholder="contact@..."/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Logo établissement (max 500ko)</label>
+          <input type="file" id="etab-logo-etab" accept="image/*" onchange="previewLogo(this,'preview-etab')"/>
+          <img id="preview-etab" style="max-height:60px;margin-top:6px;display:none;border-radius:6px;"/>
+        </div>
+        <div class="form-group">
+          <label>Logo association (max 500ko)</label>
+          <input type="file" id="etab-logo-asso" accept="image/*" onchange="previewLogo(this,'preview-asso')"/>
+          <img id="preview-asso" style="max-height:60px;margin-top:6px;display:none;border-radius:6px;"/>
+        </div>
+      </div>
 
-    document.getElementById("envoi-icone").textContent = "📱";
-    document.getElementById("envoi-titre").textContent = "PDF téléchargé !";
-    document.getElementById("envoi-message").innerHTML = `Le PDF a été sauvegardé sur votre appareil.<br><br>
-      <strong>Pour l'envoyer au GIPE :</strong><br>
-      1️⃣ Cliquez sur le bouton ci-dessous pour ouvrir votre messagerie<br>
-      2️⃣ Joignez le PDF que vous venez de télécharger<br>
-      3️⃣ Envoyez !`;
-    document.getElementById("envoi-action").innerHTML = `
-      <a href="${mailtoUrl}" style="display:inline-block;background:#1f6f8b;color:#fff;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:700;text-decoration:none;margin-bottom:8px;">
-        📧 Ouvrir ma messagerie
-      </a>`;
+  <!-- Classes -->
+  <div class="tab-content" id="tab-classes">
+    <div class="admin-panel">
+      <h2>Import rapide (copier-coller depuis tableur)</h2>
+      <div class="import-zone">
+        <p>Format : <strong>Classe [tab] Matière [tab] Professeur</strong> — une ligne par prof</p>
+        <textarea id="import-data" placeholder="3A	FRANÇAIS	Mme DUPONT Marie&#10;3A	MATHÉMATIQUES	M. MARTIN Jean"></textarea>
+      </div>
+      <button class="btn-save" onclick="importerDonnees()">📥 Importer</button>
+      <div class="success-msg" id="success-import">✅ Import réussi !</div>
+    </div>
+    <div class="admin-panel">
+      <h2>Gestion des classes</h2>
+      <div id="classes-loading" class="loading" style="display:none;">⏳ Chargement...</div>
+      <div id="classes-list"></div>
+      <button class="btn-add" onclick="ajouterClasse()">+ Ajouter une classe</button>
+      <div style="margin-top:16px;">
+        <button class="btn-save" onclick="sauvegarderClasses()">💾 Sauvegarder toutes les classes</button>
+        <div class="success-msg" id="success-classes">✅ Classes sauvegardées !</div>
+      </div>
+    </div>
+  </div>
 
-    setTimeout(() => {
-      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-    }, 15000);
+  <!-- Direction -->
+  <div class="tab-content" id="tab-direction">
+    <div class="admin-panel">
+      <h2>Import rapide (copier-coller depuis tableur)</h2>
+      <div class="import-zone">
+        <p>Format : <strong>Titre [tab] Nom</strong> — une ligne par membre</p>
+        <textarea id="import-direction" placeholder="Principale	Mme GRIFFET Sonia&#10;Adjoint	M. DUPONT Jean"></textarea>
+      </div>
+      <button class="btn-save" onclick="importerDirection()">📥 Importer</button>
+      <div class="success-msg" id="success-import-direction">✅ Import réussi !</div>
+    </div>
+    <div class="admin-panel">
+      <h2>Membres de la direction</h2>
+      <p style="font-size:13px;color:#5d6b7b;margin-bottom:12px;">Ces noms apparaîtront dans la liste "Président(e) de séance".</p>
+      <div id="direction-list"></div>
+      <button class="btn-add" onclick="ajouterDirecteur()">+ Ajouter un membre</button>
+      <div style="margin-top:16px;">
+        <button class="btn-save" onclick="sauvegarderDirection()">💾 Sauvegarder</button>
+        <div class="success-msg" id="success-direction">✅ Sauvegardé !</div>
+      </div>
+    </div>
+  </div>
 
+  <!-- Élèves -->
+  <div class="tab-content" id="tab-eleves">
+    <div class="admin-panel">
+      <h2>Import des élèves</h2>
+      <div class="import-zone">
+        <p>Format : <strong>Nom [tab] Prénom [tab] Classe</strong> — une ligne par élève</p>
+        <textarea id="import-eleves" placeholder="DUPONT	Marie	3A&#10;MARTIN	Jean	3A&#10;DURAND	Sophie	3B"></textarea>
+      </div>
+      <button class="btn-save" onclick="importerEleves()">📥 Importer</button>
+      <div class="success-msg" id="success-import-eleves">✅ Import réussi !</div>
+    </div>
+    <div class="admin-panel">
+      <h2>Élèves par classe</h2>
+      <div id="eleves-loading" class="loading" style="display:none;">⏳ Chargement...</div>
+      <div id="eleves-list"></div>
+      <button class="btn-add" onclick="ajouterClasseEleves()" style="margin-top:8px;">+ Ajouter une classe</button>
+      <div style="margin-top:12px;">
+        <button class="btn-save" onclick="sauvegarderElevesFirebase()">💾 Sauvegarder les élèves</button>
+        <div class="success-msg" id="success-eleves" style="display:none;">✅ Élèves sauvegardés !</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// FONCTIONS NON-FIREBASE (accessibles depuis les boutons)
+// ============================================================
+
+// Données en mémoire
+var classesData   = {};
+var directionData = [];
+var elevesData    = {};
+var motDePasseAdmin = "admin123";
+var db, docFn, getDocFn, setDocFn;
+
+// Initialisation au chargement
+window.addEventListener("DOMContentLoaded", function() {
+  var savedConfig = localStorage.getItem("crcc_firebase_config");
+  if (!savedConfig) {
+    document.getElementById("firebase-setup").style.display = "flex";
   } else {
-    // Sur desktop : envoi automatique via Google Apps Script
-    try {
-      const pdfBase64 = doc.output("datauristring").split(",")[1];
+    document.getElementById("login-overlay").style.display = "flex";
+    chargerMotDePasseEtAfficher();
+  }
+});
 
-      fetch(GIPE_SCRIPT_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdf: pdfBase64, classe, trimestre, date })
-      }).catch(err => console.warn("Envoi GIPE:", err));
+function chargerMotDePasseEtAfficher() {
+  // Le mot de passe Firebase sera chargé après init Firebase
+  // On affiche juste le login
+}
 
-      document.getElementById("envoi-icone").textContent = "✅";
-      document.getElementById("envoi-titre").textContent = "PDF téléchargé et envoyé au GIPE !";
-      document.getElementById("envoi-message").textContent = `Le PDF a été sauvegardé sur votre appareil et envoyé automatiquement à ${window._emailGIPE || "l'association"}`;
-    } catch (err) {
-      console.error("Erreur envoi GIPE:", err);
-      document.getElementById("envoi-icone").textContent = "⚠️";
-      document.getElementById("envoi-titre").textContent = "Attention";
-      document.getElementById("envoi-message").innerHTML = `Le PDF a été sauvegardé sur votre appareil mais l'envoi automatique a échoué. Veuillez l'envoyer manuellement à ${window._emailGIPE || "l'association"}`;
-    } finally {
-      setTimeout(() => {
-        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-      }, 4000);
+function switchTab(tab, btn) {
+  document.querySelectorAll(".tab").forEach(function(t) { t.classList.remove("active"); });
+  document.querySelectorAll(".tab-content").forEach(function(t) { t.classList.remove("active"); });
+  document.getElementById("tab-" + tab).classList.add("active");
+  if (btn) btn.classList.add("active");
+}
+
+function sauvegarderFirebaseConfig() {
+  var apiKey        = document.getElementById("fb-apikey").value.trim();
+  var authDomain    = document.getElementById("fb-authdomain").value.trim();
+  var projectId     = document.getElementById("fb-projectid").value.trim();
+  var storageBucket = document.getElementById("fb-storagebucket").value.trim();
+  var senderId      = document.getElementById("fb-senderid").value.trim();
+  var appId         = document.getElementById("fb-appid").value.trim();
+  var errEl         = document.getElementById("firebase-error");
+
+  if (!apiKey || !authDomain || !projectId || !appId) {
+    errEl.textContent = "Veuillez remplir les champs obligatoires (*)";
+    errEl.style.display = "block";
+    return;
+  }
+
+  var config = { apiKey: apiKey, authDomain: authDomain, projectId: projectId, storageBucket: storageBucket, messagingSenderId: senderId, appId: appId };
+  localStorage.setItem("crcc_firebase_config", JSON.stringify(config));
+  window.location.reload();
+}
+
+function resetFirebaseConfig() {
+  if (confirm("Réinitialiser la configuration Firebase ?")) {
+    localStorage.removeItem("crcc_firebase_config");
+    localStorage.removeItem("crcc_admin_mdp");
+    window.location.reload();
+  }
+}
+
+function verifierMotDePasse() {
+  var mdp = document.getElementById("login-password").value;
+  var mdpCache = localStorage.getItem("crcc_admin_mdp") || "admin123";
+
+  if (mdp === mdpCache) {
+    document.getElementById("login-overlay").style.display = "none";
+    document.getElementById("admin-content").style.display = "block";
+    chargerTout();
+  } else if (mdp === motDePasseAdmin) {
+    localStorage.setItem("crcc_admin_mdp", motDePasseAdmin);
+    document.getElementById("login-overlay").style.display = "none";
+    document.getElementById("admin-content").style.display = "block";
+    chargerTout();
+  } else {
+    document.getElementById("login-error").style.display = "block";
+  }
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function renderClasses() {
+  var container = document.getElementById("classes-list");
+  container.innerHTML = "";
+  var classes = Object.keys(classesData).sort();
+
+  if (classes.length === 0) {
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucune classe. Utilisez l\'import ou ajoutez manuellement.</p>';
+    return;
+  }
+
+  classes.forEach(function(nom) {
+    var classe = classesData[nom];
+    var div = document.createElement("div");
+    div.className = "classe-item";
+
+    var profsHtml = (classe.profs || []).map(function(p, i) {
+      return '<div class="prof-item">' +
+        '<input type="text" value="' + (p.matiere || "") + '" placeholder="Matière" oninput="classesData[\'' + nom + '\'].profs[' + i + '].matiere=this.value"/>' +
+        '<input type="text" value="' + (p.prof || "") + '" placeholder="Professeur" oninput="classesData[\'' + nom + '\'].profs[' + i + '].prof=this.value"/>' +
+        '<button class="btn-danger" onclick="supprimerProf(\'' + nom + '\',' + i + ')">✕</button>' +
+        '</div>';
+    }).join("");
+
+    div.innerHTML =
+      '<div class="classe-header">' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+          '<div class="classe-nom">Classe ' + nom + '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<span style="font-size:12px;color:#5d6b7b;">Code :</span>' +
+            '<input type="text" value="' + (classe.code || "") + '" placeholder="Code" style="width:80px;border:1px solid #d6dde5;border-radius:6px;padding:4px 8px;font-size:13px;" oninput="classesData[\'' + nom + '\'].code=this.value"/>' +
+          '</div>' +
+        '</div>' +
+        '<button class="btn-danger" onclick="supprimerClasse(\'' + nom + '\')">Supprimer</button>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;">' +
+        '<span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;">Matière</span>' +
+        '<span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;">Professeur</span>' +
+        '<span></span>' +
+      '</div>' +
+      profsHtml +
+      '<button class="btn-add" style="font-size:12px;padding:5px 10px;" onclick="ajouterProf(\'' + nom + '\')">+ Ajouter un prof</button>';
+
+    container.appendChild(div);
+  });
+}
+
+function renderDirection() {
+  var container = document.getElementById("direction-list");
+  container.innerHTML = "";
+  if (directionData.length === 0) {
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun membre. Utilisez l\'import ou ajoutez manuellement.</p>';
+    return;
+  }
+  directionData.forEach(function(membre, i) {
+    var titre = (membre && membre.titre) ? membre.titre : "";
+    var nom   = (membre && membre.nom)   ? membre.nom   : (typeof membre === "string" ? membre : "");
+    var div = document.createElement("div");
+    div.className = "prof-item";
+    div.innerHTML =
+      '<input type="text" value="' + titre + '" placeholder="Titre (Principale, Adjoint...)" oninput="directionData[' + i + '].titre=this.value"/>' +
+      '<input type="text" value="' + nom + '" placeholder="Nom complet" oninput="directionData[' + i + '].nom=this.value"/>' +
+      '<button class="btn-danger" onclick="supprimerDirecteur(' + i + ')">✕</button>';
+    container.appendChild(div);
+  });
+}
+
+function renderEleves() {
+  var container = document.getElementById("eleves-list");
+  container.innerHTML = "";
+  if (!window.elevesData) window.elevesData = {};
+  var classes = Object.keys(window.elevesData).sort();
+
+  if (classes.length === 0) {
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun eleve. Utilisez l\'import ou ajoutez une classe.</p>';
+    return;
+  }
+
+  classes.forEach(function(nom) {
+    var eleves = window.elevesData[nom] || [];
+    var div = document.createElement("div");
+    div.className = "classe-item";
+
+    // Header
+    var header = document.createElement("div");
+    header.className = "classe-header";
+    var titre = document.createElement("strong");
+    titre.textContent = "Classe " + nom + " — " + eleves.length + " élève(s)";
+    var btnVider = document.createElement("button");
+    btnVider.className = "btn-danger";
+    btnVider.textContent = "Vider la classe";
+    btnVider.addEventListener("click", (function(n){ return function(){ supprimerElevesClasse(n); }; })(nom));
+    header.appendChild(titre);
+    header.appendChild(btnVider);
+    div.appendChild(header);
+
+    // Colonnes
+    var cols = document.createElement("div");
+    cols.style.cssText = "display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;margin-top:8px;";
+    var c1 = document.createElement("span"); c1.textContent = "NOM"; c1.style.cssText = "font-size:11px;color:#5d6b7b;font-weight:700;";
+    var c2 = document.createElement("span"); c2.textContent = "PRÉNOM"; c2.style.cssText = "font-size:11px;color:#5d6b7b;font-weight:700;";
+    var c3 = document.createElement("span");
+    cols.appendChild(c1); cols.appendChild(c2); cols.appendChild(c3);
+    div.appendChild(cols);
+
+    // Lignes élèves — tout en createElement, événements directs
+    eleves.forEach(function(e, i) {
+      var row = document.createElement("div");
+      row.className = "prof-item";
+      row.style.marginBottom = "6px";
+
+      var inp1 = document.createElement("input");
+      inp1.type = "text";
+      inp1.value = e.nom || "";
+      inp1.placeholder = "Nom";
+      inp1.style.cssText = "border:1px solid #d6dde5;border-radius:6px;padding:6px 8px;font-size:13px;width:100%;";
+      inp1.addEventListener("input", (function(n, idx) {
+        return function() { window.elevesData[n][idx].nom = this.value.toUpperCase(); };
+      })(nom, i));
+
+      var inp2 = document.createElement("input");
+      inp2.type = "text";
+      inp2.value = e.prenom || "";
+      inp2.placeholder = "Prénom";
+      inp2.style.cssText = "border:1px solid #d6dde5;border-radius:6px;padding:6px 8px;font-size:13px;width:100%;";
+      inp2.addEventListener("input", (function(n, idx) {
+        return function() { window.elevesData[n][idx].prenom = this.value; };
+      })(nom, i));
+
+      var btn = document.createElement("button");
+      btn.className = "btn-danger";
+      btn.textContent = "✕";
+      btn.addEventListener("click", (function(n, idx) {
+        return function() { supprimerEleve(n, idx); };
+      })(nom, i));
+
+      row.appendChild(inp1);
+      row.appendChild(inp2);
+      row.appendChild(btn);
+      div.appendChild(row);
+    });
+
+    // Bouton ajouter
+    var btnAjouter = document.createElement("button");
+    btnAjouter.className = "btn-add";
+    btnAjouter.style.cssText = "font-size:12px;padding:5px 10px;margin-top:6px;";
+    btnAjouter.textContent = "+ Ajouter un élève";
+    btnAjouter.addEventListener("click", (function(n){ return function(){ ajouterEleve(n); }; })(nom));
+    div.appendChild(btnAjouter);
+
+    container.appendChild(div);
+  });
+}
+
+// ============================================================
+// ACTIONS
+// ============================================================
+function ajouterClasse() {
+  var nom = prompt("Nom de la classe (ex: 3A) :").trim().toUpperCase();
+  if (!nom) return;
+  if (classesData[nom]) { alert("Cette classe existe déjà !"); return; }
+  classesData[nom] = { code: "", profs: [] };
+  renderClasses();
+}
+
+function supprimerClasse(nom) {
+  if (!confirm("Supprimer la classe " + nom + " ?")) return;
+  delete classesData[nom];
+  renderClasses();
+}
+
+function ajouterProf(nomClasse) {
+  classesData[nomClasse].profs.push({ matiere: "", prof: "" });
+  renderClasses();
+}
+
+function supprimerProf(nomClasse, idx) {
+  classesData[nomClasse].profs.splice(idx, 1);
+  renderClasses();
+}
+
+function ajouterDirecteur() {
+  directionData.push({ titre: "", nom: "" });
+  renderDirection();
+}
+
+function supprimerDirecteur(idx) {
+  directionData.splice(idx, 1);
+  renderDirection();
+}
+
+function previewLogo(input, previewId) {
+  var file = input.files[0];
+  if (!file) return;
+  if (file.size > 500000) { alert("Image trop lourde (max 500ko)"); input.value = ""; return; }
+  var reader = new FileReader();
+  reader.onload = function(r) {
+    var img = document.getElementById(previewId);
+    img.src = r.target.result;
+    img.style.display = "block";
+  };
+  reader.readAsDataURL(file);
+}
+
+function ajouterClasseEleves() {
+  var nom = prompt("Nom de la classe (ex: 3A) :").trim().toUpperCase();
+  if (!nom) return;
+  if (!window.elevesData) window.elevesData = {};
+  if (!window.elevesData[nom]) window.elevesData[nom] = [];
+  renderEleves();
+}
+
+function ajouterEleve(classe) {
+  if (!window.elevesData) window.elevesData = {};
+  if (!window.elevesData[classe]) window.elevesData[classe] = [];
+  window.elevesData[classe].push({ nom: "", prenom: "" });
+  renderEleves();
+}
+
+function supprimerEleve(classe, idx) {
+  window.elevesData[classe].splice(idx, 1);
+  renderEleves();
+}
+
+function supprimerElevesClasse(classe) {
+  if (!confirm("Supprimer tous les élèves de la classe " + classe + " ?")) return;
+  delete window.elevesData[classe];
+  sauvegarderElevesFirebase();
+  renderEleves();
+}
+
+function importerDirection() {
+  var texte = document.getElementById("import-direction").value.trim();
+  if (!texte) { alert("Collez vos données."); return; }
+  var lignes = texte.split("\n");
+  var nbImport = 0;
+  lignes.forEach(function(ligne) {
+    var cols = ligne.split("\t");
+    var titre = cols.length >= 2 ? cols[0].trim() : "";
+    var nom   = cols.length >= 2 ? cols[1].trim() : cols[0].trim();
+    if (!nom) return;
+    directionData.push({ titre: titre, nom: nom });
+    nbImport++;
+  });
+  renderDirection();
+  document.getElementById("import-direction").value = "";
+  var msg = document.getElementById("success-import-direction");
+  msg.textContent = "✅ " + nbImport + " membre(s) importé(s) !";
+  msg.style.display = "block";
+  setTimeout(function() { msg.style.display = "none"; }, 3000);
+}
+
+function importerDonnees() {
+  var texte = document.getElementById("import-data").value.trim();
+  if (!texte) { alert("Collez vos données."); return; }
+  var lignes = texte.split("\n");
+  var nbImport = 0;
+  lignes.forEach(function(ligne) {
+    var cols = ligne.split("\t");
+    if (cols.length < 3) return;
+    var classe  = cols[0].trim().toUpperCase();
+    var matiere = cols[1].trim();
+    var prof    = cols[2].trim();
+    if (!classe || !matiere || !prof) return;
+    if (!classesData[classe]) classesData[classe] = { code: "", profs: [] };
+    var existe = classesData[classe].profs.some(function(p) { return p.matiere === matiere && p.prof === prof; });
+    if (!existe) { classesData[classe].profs.push({ matiere: matiere, prof: prof }); nbImport++; }
+  });
+  renderClasses();
+  document.getElementById("import-data").value = "";
+  var msg = document.getElementById("success-import");
+  msg.textContent = "✅ " + nbImport + " ligne(s) importée(s) !";
+  msg.style.display = "block";
+  setTimeout(function() { msg.style.display = "none"; }, 3000);
+}
+
+function importerEleves() {
+  var texte = document.getElementById("import-eleves").value.trim();
+  if (!texte) { alert("Collez vos données."); return; }
+  var lignes = texte.split("\n");
+  var newEleves = {};
+  var nbImport = 0;
+  lignes.forEach(function(ligne) {
+    var cols = ligne.split("\t");
+    if (cols.length < 3) return;
+    var nom    = cols[0].trim().toUpperCase();
+    var prenom = cols[1].trim();
+    var classe = cols[2].trim().toUpperCase();
+    if (!nom || !prenom || !classe) return;
+    if (!newEleves[classe]) newEleves[classe] = [];
+    newEleves[classe].push({ nom: nom, prenom: prenom });
+    nbImport++;
+  });
+  if (!window.elevesData) window.elevesData = {};
+  Object.keys(newEleves).forEach(function(cls) { window.elevesData[cls] = newEleves[cls]; });
+  sauvegarderElevesFirebase();
+  renderEleves();
+  document.getElementById("import-eleves").value = "";
+  var msg = document.getElementById("success-import-eleves");
+  msg.textContent = "✅ " + nbImport + " élève(s) importé(s) !";
+  msg.style.display = "block";
+  setTimeout(function() { msg.style.display = "none"; }, 3000);
+}
+
+function afficherSucces(id) {
+  var el = document.getElementById(id);
+  el.style.display = "block";
+  setTimeout(function() { el.style.display = "none"; }, 3000);
+}
+
+// Ces fonctions appellent Firebase via les fonctions exposées par le module
+function sauvegarderEtablissement() { if (window._fbSauvegarderEtablissement) window._fbSauvegarderEtablissement(); }
+function sauvegarderClasses()       { if (window._fbSauvegarderClasses)       window._fbSauvegarderClasses(); }
+function sauvegarderDirection()     { if (window._fbSauvegarderDirection)      window._fbSauvegarderDirection(); }
+function sauvegarderElevesFirebase(){ if (window._fbSauvegarderEleves)         window._fbSauvegarderEleves(); }
+function chargerTout()              { 
+  renderEleves(); // Afficher même si vide
+  renderClasses();
+  renderDirection();
+  if (window._fbChargerTout) window._fbChargerTout(); 
+}
+</script>
+
+<!-- Firebase (module séparé) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  var savedConfig = localStorage.getItem("crcc_firebase_config");
+  if (savedConfig) { // Seulement si Firebase est configuré
+  var firebaseConfig = JSON.parse(savedConfig);
+  var app = initializeApp(firebaseConfig);
+  var db  = getFirestore(app);
+
+  // Charger le mot de passe depuis Firebase au démarrage
+  try {
+    var snap = await getDoc(doc(db, "config", "etablissement"));
+    if (snap.exists() && snap.data().motDePasseAdmin) {
+      window.motDePasseAdmin = snap.data().motDePasseAdmin;
+      localStorage.setItem("crcc_admin_mdp", snap.data().motDePasseAdmin);
     }
-  }
-}
+  } catch(e) {}
 
-document.getElementById("listing-eleves").addEventListener("click", () => {
-  const classe = classSelect.value;
-  if (!classe) { alert("Sélectionnez une classe"); return; }
-  window.open(
-    `listing-eleves.html?classe=${encodeURIComponent(classe)}&trimestre=${encodeURIComponent(document.getElementById("input-term").value)}&date=${document.getElementById("input-date").value}`,
-    "_blank"
-  );
-});
+  // Exposer les fonctions Firebase
+  window._fbChargerTout = async function() {
+    // Config établissement
+    try {
+      var snap = await getDoc(doc(db, "config", "etablissement"));
+      if (snap.exists()) {
+        var data = snap.data();
+        document.getElementById("etab-nom").value         = data.nom           || "";
+        document.getElementById("etab-academie").value    = data.academie      || "";
+        document.getElementById("etab-email").value       = data.emailGIPE     || "";
+        document.getElementById("etab-association").value = data.nomAssociation || "";
+        document.getElementById("admin-etablissement-nom").textContent = data.nom || "Non configuré";
+        window.motDePasseAdmin = data.motDePasseAdmin || "admin123";
+        // Logos
+        if (data.logoEtablissement) {
+          var img1 = document.getElementById("preview-etab");
+          if (img1) { img1.src = data.logoEtablissement; img1.style.display = "block"; }
+        }
+        if (data.logoAssociation) {
+          var img2 = document.getElementById("preview-asso");
+          if (img2) { img2.src = data.logoAssociation; img2.style.display = "block"; }
+        }
+      }
+    } catch(e) {}
 
-loadSampleBtn.addEventListener("click", () => {
-  const classe = classSelect.value;
-  if (classe) loadClasseData(classe);
-});
+    // Classes
+    try {
+      var snap2 = await getDoc(doc(db, "config", "classes"));
+      if (snap2.exists()) { window.classesData = snap2.data(); }
+    } catch(e) {}
+    document.getElementById("classes-loading").style.display = "none";
+    renderClasses();
 
-// ============================================================
-//  MODALE AIDE
-// ============================================================
-window.addEventListener("DOMContentLoaded", () => {
-  const helpModal = document.getElementById("help-modal");
-  const helpBtn   = document.getElementById("open-help");
-  const helpSpan  = document.querySelector(".close-btn");
-  if (helpBtn && helpModal && helpSpan) {
-    helpBtn.onclick  = () => { helpModal.style.display = "flex"; };
-    helpSpan.onclick = () => { helpModal.style.display = "none"; };
-    window.onclick   = (e) => { if (e.target === helpModal) helpModal.style.display = "none"; };
-  }
-});
+    // Direction
+    try {
+      var snap3 = await getDoc(doc(db, "config", "direction"));
+      if (snap3.exists()) {
+        // Supporter les deux formats : membres (nouveau) ou noms (ancien)
+        if (snap3.data().membres) {
+          window.directionData = snap3.data().membres;
+        } else {
+          // Convertir l'ancien format en nouveau
+          window.directionData = (snap3.data().noms || []).map(function(n) { return { titre: "", nom: n }; });
+        }
+      }
+    } catch(e) {}
+    renderDirection();
 
-// ============================================================
-//  MODE RETOUR (flag global)
-// ============================================================
-window._modeRetour = false;
+    // Élèves
+    try {
+      var snap4 = await getDoc(doc(db, "config", "eleves"));
+      if (snap4.exists()) { window.elevesData = snap4.data(); }
+    } catch(e) {}
+    renderEleves();
 
-// ============================================================
-//  ONGLETS MOBILE
-// ============================================================
-function switchTab(tab) {
-  const formPanel    = document.querySelector(".form-panel");
-  const previewPanel = document.querySelector(".preview-panel");
-  const tabSaisie    = document.getElementById("tab-saisie");
-  const tabApercu    = document.getElementById("tab-apercu");
-
-  if (tab === "saisie") {
-    formPanel.classList.remove("mobile-hidden");
-    previewPanel.classList.remove("mobile-visible");
-    tabSaisie.classList.add("active");
-    tabApercu.classList.remove("active");
-  } else {
-    formPanel.classList.add("mobile-hidden");
-    previewPanel.classList.add("mobile-visible");
-    tabSaisie.classList.remove("active");
-    tabApercu.classList.add("active");
-  }
-}
-
-// ============================================================
-//  SAUVEGARDE AUTOMATIQUE (localStorage)
-// ============================================================
-
-const SAVE_KEY          = "appconseils_sauvegarde";
-const SAVE_KEY_ORIGINAL = "appconseils_sauvegarde_originale";
-
-function sauvegarder() {
-  if (window._sauvegardeDesactivee) return; // Désactivée pendant restauration
-  const classe = classSelect.value;
-  if (!classe) return; // Rien à sauvegarder si pas de classe
-
-  const data = {
-    classe:       classe,
-    trimestre:    document.getElementById("input-term").value,
-    date:         document.getElementById("input-date").value,
-    principal:    document.getElementById("input-principal").value,
-    parents:      document.getElementById("input-parents").value,
-    students:     document.getElementById("input-students").value,
-    others:       document.getElementById("input-others").value,
-    fel:          document.getElementById("input-fel").value,
-    comp:         document.getElementById("input-comp").value,
-    enc:          document.getElementById("input-enc").value,
-    avc:          document.getElementById("input-avc").value,
-    avt:          document.getElementById("input-avt").value,
-    ava:          document.getElementById("input-ava").value,
-    obsPrincipal: document.getElementById("input-obs-principal").value,
-    obsPP:        document.getElementById("input-obs-pp").value,
-    obsEleves:    document.getElementById("input-obs-eleves").value,
-    obsParents:   document.getElementById("input-obs-parents").value,
-    // Présences des profs
-    presences:    Array.from(document.querySelectorAll("#subjects-form .row:not(.header)")).map(row => ({
-      matiere:  row.querySelectorAll("input")[0]?.value || "",
-      prof:     row.querySelectorAll("input")[1]?.value || "",
-      present:  row._getPresence ? row._getPresence() : "Oui"
-    })),
-    savedAt: new Date().toISOString()
+    // Mettre à jour le sous-titre
+    var nom = document.getElementById("etab-nom").value;
+    document.getElementById("admin-etablissement-nom").textContent = nom || "Configuration en cours...";
   };
 
-  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-}
-
-function effacerSauvegarde() {
-  localStorage.removeItem(SAVE_KEY);
-  localStorage.removeItem(SAVE_KEY_ORIGINAL);
-}
-
-function restaurerSauvegarde(data) {
-  // Remplir les champs cachés
-  classSelect.value = data.classe;
-  document.getElementById("input-term").value    = data.trimestre;
-  document.getElementById("input-date").value    = data.date;
-
-  // Remplir les champs affichage lecture seule
-  document.getElementById("input-class-display").value = data.classe;
-  document.getElementById("input-term-display").value  = data.trimestre;
-  document.getElementById("input-date-display").value  = formatDate(data.date);
-
-  // Forcer l'aperçu header
-  setPreview("preview-title", `Conseil de classe ${data.classe}`);
-  setPreview("preview-term",  data.trimestre);
-  setPreview("header-date",   formatDate(data.date));
-
-  // Restaurer les matières avec les présences
-  applyClassSubjects(data.presences.map(p => ({
-    matiere: p.matiere,
-    prof:    p.prof,
-    present: p.present
-  })));
-
-  // Remplir les autres champs
-  const champs = [
-    ["input-parents",       data.parents],
-    ["input-students",      data.students],
-    ["input-others",        data.others],
-    ["input-fel",           data.fel],
-    ["input-comp",          data.comp],
-    ["input-enc",           data.enc],
-    ["input-avc",           data.avc],
-    ["input-avt",           data.avt],
-    ["input-ava",           data.ava],
-    ["input-obs-principal", data.obsPrincipal],
-    ["input-obs-pp",        data.obsPP],
-    ["input-obs-eleves",    data.obsEleves],
-    ["input-obs-parents",   data.obsParents],
-  ];
-  champs.forEach(([id, val]) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.value = val || "";
-      el.dispatchEvent(new Event("input")); // Mettre à jour l'aperçu
-    }
-  });
-
-  // Restaurer le principal après un court délai (le select doit être chargé)
-  setTimeout(() => {
-    const principalEl = document.getElementById("input-principal");
-    if (principalEl) {
-      principalEl.value = data.principal || "";
-      principalEl.dispatchEvent(new Event("change"));
-    }
-  }, 500);
-}
-
-function verifierSauvegarde() {
-  const saved = localStorage.getItem(SAVE_KEY);
-  if (!saved) return;
-
-  try {
-    const data = JSON.parse(saved);
-    if (!data.classe) return;
-
-    const date = data.date ? ` du ${formatDate(data.date)}` : "";
-    const msg  = `💾 Une saisie non terminée a été trouvée :
-
-Classe ${data.classe} · ${data.trimestre}${date}
-
-Voulez-vous la reprendre ?`;
-
-    if (confirm(msg)) {
-      // Afficher l'écran app directement
-      document.getElementById("screen-accueil").style.display = "none";
-      document.getElementById("screen-app").style.display     = "block";
-      restaurerSauvegarde(data);
-    } else {
-      effacerSauvegarde();
-    }
-  } catch(e) {
-    console.error("Erreur restauration sauvegarde", e);
-    effacerSauvegarde();
+  async function lireLogoBase64(inputId) {
+    return new Promise(function(resolve) {
+      var input = document.getElementById(inputId);
+      if (!input || !input.files[0]) { resolve(null); return; }
+      var reader = new FileReader();
+      reader.onload = function(r) { resolve(r.target.result); };
+      reader.readAsDataURL(input.files[0]);
+    });
   }
-}
 
-// Sauvegarde automatique sur chaque champ texte/number/select
-function activerSauvegardeAuto() {
-  const ids = [
-    "input-parents", "input-students", "input-others",
-    "input-fel", "input-comp", "input-enc",
-    "input-avc", "input-avt", "input-ava",
-    "input-obs-principal", "input-obs-pp", "input-obs-eleves", "input-obs-parents",
-    "input-principal", "input-term", "input-date"
-  ];
-  ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener("input",  () => sauvegarder());
-      el.addEventListener("change", () => sauvegarder());
-    }
-  });
-}
+  window._fbSauvegarderEtablissement = async function() {
+    var nom         = document.getElementById("etab-nom").value.trim();
+    var academie    = document.getElementById("etab-academie").value.trim();
+    var email       = document.getElementById("etab-email").value.trim();
+    var association = document.getElementById("etab-association").value.trim();
+    var mdp         = document.getElementById("etab-mdp").value.trim();
+    var nouveauMdp  = mdp || window.motDePasseAdmin;
 
-// Effacer la sauvegarde après génération du PDF
-const _origGeneratePDF = generatePDF;
-// (on appellera effacerSauvegarde() à la fin de generatePDF)
+    // Logos en base64
+    var logoEtab = await lireLogoBase64("etab-logo-etab");
+    var logoAsso = await lireLogoBase64("etab-logo-asso");
 
-// ============================================================
-//  DÉMARRAGE
-// ============================================================
-setupBindings();
+    var data = { nom: nom, academie: academie, emailGIPE: email, nomAssociation: association, motDePasseAdmin: nouveauMdp };
+    if (logoEtab) data.logoEtablissement = logoEtab;
+    if (logoAsso) data.logoAssociation   = logoAsso;
 
-// loadConfig() est appelé par window._demarrerApp()
-// qui est déclenché par le module Firebase dans index.html une fois Firebase prêt
-window._demarrerApp = function() {
-  loadConfig().then(() => {
-    if (!verifierLienRelecture()) {
-      setTimeout(verifierSauvegarde, 1500);
-    }
-  });
-};
+    try {
+      await setDoc(doc(db, "config", "etablissement"), data, { merge: true });
+      window.motDePasseAdmin = nouveauMdp;
+      localStorage.setItem("crcc_admin_mdp", nouveauMdp);
+      document.getElementById("admin-etablissement-nom").textContent = nom || "Non configuré";
+      document.getElementById("etab-mdp").value = "";
+      afficherSucces("success-etablissement");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  window._fbSauvegarderClasses = async function() {
+    try {
+      await setDoc(doc(db, "config", "classes"), window.classesData);
+      afficherSucces("success-classes");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  window._fbSauvegarderDirection = async function() {
+    try {
+      // Convertir en format texte pour la compatibilité avec l'app principale
+      // On stocke titre + nom fusionnés pour setPrincipalOptions
+      var nomsFusionnes = window.directionData.map(function(m) {
+        if (typeof m === "string") return m;
+        return ((m.titre ? m.titre + " " : "") + (m.nom || "")).trim();
+      }).filter(function(n) { return n; });
+      await setDoc(doc(db, "config", "direction"), { noms: nomsFusionnes, membres: window.directionData });
+      afficherSucces("success-direction");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  window._fbSauvegarderEleves = async function() {
+    try {
+      await setDoc(doc(db, "config", "eleves"), window.elevesData);
+      afficherSucces("success-eleves");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  } // fin if(savedConfig)
+</script>
+</body>
+</html>
