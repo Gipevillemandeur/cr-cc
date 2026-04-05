@@ -201,7 +201,7 @@
       <button class="btn-add" onclick="ajouterClasseEleves()" style="margin-top:8px;">+ Ajouter une classe</button>
       <div style="margin-top:12px;">
         <button class="btn-save" onclick="sauvegarderElevesFirebase()">💾 Sauvegarder les élèves</button>
-        <div class="success-msg" id="success-eleves">✅ Élèves sauvegardés !</div>
+        <div class="success-msg" id="success-eleves" style="display:none;">✅ Élèves sauvegardés !</div>
       </div>
     </div>
   </div>
@@ -736,6 +736,7 @@ function chargerTout()              {
   window._fbSauvegarderEleves = async function() {
     try {
       await setDoc(doc(db, "config", "eleves"), window.elevesData);
+      afficherSucces("success-eleves");
     } catch(e) { alert("Erreur : " + e.message); }
   };
 
