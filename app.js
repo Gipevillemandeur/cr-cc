@@ -1066,16 +1066,9 @@ async function generatePDF(apercuSeulement = false) {
     return y + blockH + 3;
   }
 
-  // Chargement des logos depuis Firebase (stockés en base64) ou fichiers par défaut
+  // Logos chargés depuis Firebase uniquement (stockés en base64)
   let logoAcad    = window._logoEtablissement || null;
   let logoParents = window._logoAssociation   || null;
-  // Fallback sur les fichiers PNG si pas de logo Firebase
-  if (!logoAcad) {
-    try { logoAcad    = await imageToBase64("assets/logo-academie.png");  } catch(e) {}
-  }
-  if (!logoParents) {
-    try { logoParents = await imageToBase64("assets/logo-parents.png"); } catch(e) {}
-  }
 
   // ============ PAGE 1 ============
   let y = margin;
