@@ -598,11 +598,23 @@ function sauvegarderEtablissement() { if (window._fbSauvegarderEtablissement) wi
 function sauvegarderClasses()       { if (window._fbSauvegarderClasses)       window._fbSauvegarderClasses(); }
 function sauvegarderDirection()     { if (window._fbSauvegarderDirection)      window._fbSauvegarderDirection(); }
 function sauvegarderElevesFirebase(){ if (window._fbSauvegarderEleves)         window._fbSauvegarderEleves(); }
-function chargerTout()              { 
-  renderEleves(); // Afficher même si vide
+function chargerTout() {
+  renderEleves();
   renderClasses();
   renderDirection();
-  if (window._fbChargerTout) window._fbChargerTout(); 
+  if (window._fbChargerTout) {
+    window._fbChargerTout();
+  } else {
+    // Firebase pas encore prêt — réessayer dans 1s
+    setTimeout(function() {
+      if (window._fbChargerTout) {
+        window._fbChargerTout();
+      } else {
+        console.error("Firebase non disponible après 1s");
+        document.getElementById("classes-loading").style.display = "none";
+      }
+    }, 1000);
+  }
 }
 </script>
 
