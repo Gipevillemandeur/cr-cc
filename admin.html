@@ -360,7 +360,8 @@ function renderDirection() {
 function renderEleves() {
   var container = document.getElementById("eleves-list");
   container.innerHTML = "";
-  var classes = Object.keys(elevesData).sort();
+  if (!window.elevesData) window.elevesData = {};
+  var classes = Object.keys(window.elevesData).sort();
 
   if (classes.length === 0) {
     container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun eleve. Utilisez l\'import ou ajoutez une classe manuellement.</p>';
@@ -368,7 +369,7 @@ function renderEleves() {
   }
 
   classes.forEach(function(nom) {
-    var eleves = elevesData[nom] || [];
+    var eleves = window.elevesData[nom] || [];
     var div = document.createElement("div");
     div.className = "classe-item";
 
@@ -484,24 +485,26 @@ function previewLogo(input, previewId) {
 function ajouterClasseEleves() {
   var nom = prompt("Nom de la classe (ex: 3A) :").trim().toUpperCase();
   if (!nom) return;
+  if (!window.elevesData) window.elevesData = {};
   if (!window.elevesData[nom]) window.elevesData[nom] = [];
   renderEleves();
 }
 
 function ajouterEleve(classe) {
-  if (!elevesData[classe]) elevesData[classe] = [];
-  elevesData[classe].push({ nom: "", prenom: "" });
+  if (!window.elevesData) window.elevesData = {};
+  if (!window.elevesData[classe]) window.elevesData[classe] = [];
+  window.elevesData[classe].push({ nom: "", prenom: "" });
   renderEleves();
 }
 
 function supprimerEleve(classe, idx) {
-  elevesData[classe].splice(idx, 1);
+  window.elevesData[classe].splice(idx, 1);
   renderEleves();
 }
 
 function supprimerElevesClasse(classe) {
   if (!confirm("Supprimer tous les élèves de la classe " + classe + " ?")) return;
-  delete elevesData[classe];
+  delete window.elevesData[classe];
   sauvegarderElevesFirebase();
   renderEleves();
 }
@@ -568,7 +571,8 @@ function importerEleves() {
     newEleves[classe].push({ nom: nom, prenom: prenom });
     nbImport++;
   });
-  Object.keys(newEleves).forEach(function(cls) { elevesData[cls] = newEleves[cls]; });
+  if (!window.elevesData) window.elevesData = {};
+  Object.keys(newEleves).forEach(function(cls) { window.elevesData[cls] = newEleves[cls]; });
   sauvegarderElevesFirebase();
   renderEleves();
   document.getElementById("import-eleves").value = "";
