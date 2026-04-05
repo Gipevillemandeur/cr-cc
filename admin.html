@@ -367,13 +367,18 @@ function renderEleves() {
     var div = document.createElement("div");
     div.className = "classe-item";
 
-    var elevesHtml = eleves.map(function(e, i) {
-      return '<div class="prof-item">' +
-        '<input type="text" value="' + (e.nom||"") + '" placeholder="Nom" oninput="elevesData['' + nom + ''][' + i + '].nom=this.value.toUpperCase()"/>' +
-        '<input type="text" value="' + (e.prenom||"") + '" placeholder="Prénom" oninput="elevesData['' + nom + ''][' + i + '].prenom=this.value"/>' +
-        '<button class="btn-danger" onclick="supprimerEleve('' + nom + '',' + i + ')">✕</button>' +
-        '</div>';
-    }).join("");
+    var elevesHtml = "";
+    eleves.forEach(function(e, i) {
+      var d = document.createElement("div");
+      d.className = "prof-item";
+      var i1 = document.createElement("input"); i1.type="text"; i1.value=e.nom||""; i1.placeholder="Nom";
+      i1.style.cssText="border:1px solid #d6dde5;border-radius:6px;padding:6px 8px;font-size:13px;width:100%;";
+      var i2 = document.createElement("input"); i2.type="text"; i2.value=e.prenom||""; i2.placeholder="Prénom";
+      i2.style.cssText="border:1px solid #d6dde5;border-radius:6px;padding:6px 8px;font-size:13px;width:100%;";
+      var b = document.createElement("button"); b.className="btn-danger"; b.textContent="✕";
+      d.appendChild(i1); d.appendChild(i2); d.appendChild(b);
+      elevesHtml += d.outerHTML;
+    });
 
     div.innerHTML =
       '<div class="classe-header">' +
