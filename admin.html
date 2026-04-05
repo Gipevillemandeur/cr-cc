@@ -358,25 +358,45 @@ function renderEleves() {
   var classes = Object.keys(elevesData).sort();
 
   if (classes.length === 0) {
-    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun élève. Utilisez l\'import.</p>';
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun élève. Utilisez l'import ou ajoutez une classe manuellement.</p>';
     return;
   }
 
   classes.forEach(function(nom) {
     var eleves = elevesData[nom] || [];
     var div = document.createElement("div");
-    div.style.cssText = "border:1px solid #d6dde5;border-radius:10px;padding:14px;margin-bottom:10px;";
+    div.className = "classe-item";
+
+    var elevesHtml = eleves.map(function(e, i) {
+      return '<div class="prof-item">' +
+        '<input type="text" value="' + (e.nom||"") + '" placeholder="Nom" oninput="elevesData['' + nom + ''][' + i + '].nom=this.value.toUpperCase()"/>' +
+        '<input type="text" value="' + (e.prenom||"") + '" placeholder="Prénom" oninput="elevesData['' + nom + ''][' + i + '].prenom=this.value"/>' +
+        '<button class="btn-danger" onclick="supprimerEleve('' + nom + '',' + i + ')">✕</button>' +
+        '</div>';
+    }).join("");
+
     div.innerHTML =
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-        '<strong>Classe ' + nom + '</strong>' +
-        '<span style="font-size:12px;color:#5d6b7b;">' + eleves.length + ' élève(s)</span>' +
-        '<button class="btn-danger" onclick="supprimerElevesClasse(\'' + nom + '\')">Vider</button>' +
+      '<div class="classe-header">' +
+        '<strong>Classe ' + nom + ' — ' + eleves.length + ' élève(s)</strong>' +
+        '<button class="btn-danger" onclick="supprimerElevesClasse('' + nom + '')">Vider la classe</button>' +
       '</div>' +
-      '<div style="font-size:12px;color:#5d6b7b;max-height:80px;overflow-y:auto;">' +
-        eleves.map(function(e) { return e.nom + ' ' + e.prenom; }).join(" • ") +
-      '</div>';
+      '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;">' +
+        '<span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;">Nom</span>' +
+        '<span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;">Prénom</span>' +
+        '<span></span>' +
+      '</div>' +
+      elevesHtml +
+      '<button class="btn-add" style="font-size:12px;padding:5px 10px;margin-top:6px;" onclick="ajouterEleve('' + nom + '')">+ Ajouter un élève</button>';
+
     container.appendChild(div);
   });
+
+  // Bouton sauvegarder en bas
+  var btnSave = document.createElement("div");
+  btnSave.style.marginTop = "12px";
+  btnSave.innerHTML = '<button class="btn-save" onclick="sauvegarderElevesFirebase()">💾 Sauvegarder les élèves</button>' +
+    '<div class="success-msg" id="success-eleves" style="display:none;">✅ Élèves sauvegardés !</div>';
+  container.appendChild(btnSave);
 }
 
 // ============================================================
