@@ -163,6 +163,15 @@
   <!-- Direction -->
   <div class="tab-content" id="tab-direction">
     <div class="admin-panel">
+      <h2>Import rapide (copier-coller depuis tableur)</h2>
+      <div class="import-zone">
+        <p>Format : <strong>Titre [tab] Nom</strong> — une ligne par membre</p>
+        <textarea id="import-direction" placeholder="Principale	Mme GRIFFET Sonia&#10;Adjoint	M. DUPONT Jean"></textarea>
+      </div>
+      <button class="btn-save" onclick="importerDirection()">📥 Importer</button>
+      <div class="success-msg" id="success-import-direction">✅ Import réussi !</div>
+    </div>
+    <div class="admin-panel">
       <h2>Membres de la direction</h2>
       <p style="font-size:13px;color:#5d6b7b;margin-bottom:12px;">Ces noms apparaîtront dans la liste "Président(e) de séance".</p>
       <div id="direction-list"></div>
@@ -326,11 +335,18 @@ function renderClasses() {
 function renderDirection() {
   var container = document.getElementById("direction-list");
   container.innerHTML = "";
-  directionData.forEach(function(nom, i) {
+  if (directionData.length === 0) {
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun membre. Utilisez l'import ou ajoutez manuellement.</p>';
+    return;
+  }
+  directionData.forEach(function(membre, i) {
+    var titre = (membre && membre.titre) ? membre.titre : "";
+    var nom   = (membre && membre.nom)   ? membre.nom   : (typeof membre === "string" ? membre : "");
     var div = document.createElement("div");
-    div.className = "direction-item";
+    div.className = "prof-item";
     div.innerHTML =
-      '<input type="text" value="' + nom + '" placeholder="Nom et titre" oninput="directionData[' + i + ']=this.value"/>' +
+      '<input type="text" value="' + titre + '" placeholder="Titre (Principale, Adjoint...)" oninput="directionData[' + i + '].titre=this.value"/>' +
+      '<input type="text" value="' + nom + '" placeholder="Nom complet" oninput="directionData[' + i + '].nom=this.value"/>' +
       '<button class="btn-danger" onclick="supprimerDirecteur(' + i + ')">✕</button>';
     container.appendChild(div);
   });
@@ -391,7 +407,7 @@ function supprimerProf(nomClasse, idx) {
 }
 
 function ajouterDirecteur() {
-  directionData.push("");
+  directionData.push({ titre: "", nom: "" });
   renderDirection();
 }
 
@@ -429,6 +445,27 @@ function supprimerElevesClasse(classe) {
   delete elevesData[classe];
   sauvegarderElevesFirebase();
   renderEleves();
+}
+
+function importerDirection() {
+  var texte = document.getElementById("import-direction").value.trim();
+  if (!texte) { alert("Collez vos données."); return; }
+  var lignes = texte.split("\n");
+  var nbImport = 0;
+  lignes.forEach(function(ligne) {
+    var cols = ligne.split("\t");
+    var titre = cols.length >= 2 ? cols[0].trim() : "";
+    var nom   = cols.length >= 2 ? cols[1].trim() : cols[0].trim();
+    if (!nom) return;
+    directionData.push({ titre: titre, nom: nom });
+    nbImport++;
+  });
+  renderDirection();
+  document.getElementById("import-direction").value = "";
+  var msg = document.getElementById("success-import-direction");
+  msg.textContent = "✅ " + nbImport + " membre(s) importé(s) !";
+  msg.style.display = "block";
+  setTimeout(function() { msg.style.display = "none"; }, 3000);
 }
 
 function importerDonnees() {
@@ -557,7 +594,15 @@ function chargerTout()              {
     // Direction
     try {
       var snap3 = await getDoc(doc(db, "config", "direction"));
-      if (snap3.exists()) { window.directionData = snap3.data().noms || []; }
+      if (snap3.exists()) {
+        // Supporter les deux formats : membres (nouveau) ou noms (ancien)
+        if (snap3.data().membres) {
+          window.directionData = snap3.data().membres;
+        } else {
+          // Convertir l'ancien format en nouveau
+          window.directionData = (snap3.data().noms || []).map(function(n) { return { titre: "", nom: n }; });
+        }
+      }
     } catch(e) {}
     renderDirection();
 
@@ -618,7 +663,13 @@ function chargerTout()              {
 
   window._fbSauvegarderDirection = async function() {
     try {
-      await setDoc(doc(db, "config", "direction"), { noms: window.directionData });
+      // Convertir en format texte pour la compatibilité avec l'app principale
+      // On stocke titre + nom fusionnés pour setPrincipalOptions
+      var nomsFusionnes = window.directionData.map(function(m) {
+        if (typeof m === "string") return m;
+        return ((m.titre ? m.titre + " " : "") + (m.nom || "")).trim();
+      }).filter(function(n) { return n; });
+      await setDoc(doc(db, "config", "direction"), { noms: nomsFusionnes, membres: window.directionData });
       afficherSucces("success-direction");
     } catch(e) { alert("Erreur : " + e.message); }
   };
