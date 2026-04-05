@@ -1,10 +1,755 @@
-{
-  "principals": [
-    "M. DUPONT Jean",
-    "Mme MARTIN Sophie"
-  ],
-  "googleSheets": {
-    "apiKey": "AIzaSyCeKzsc5ILt8-FrY57anXB70GFySVJbC5Y",
-    "spreadsheetId": "1wPN30mcP5flPwo18xETIbscYYt1YTK05I_gwTFvPno0"
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Administration - CR-CC</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    body { background: radial-gradient(circle at top, #f7f2ea 0%, #f4f6f8 48%); min-height: 100vh; padding: 20px; }
+    .admin-container { max-width: 900px; margin: 0 auto; }
+    .admin-header { background: #fff; border-radius: 16px; padding: 20px 24px; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.07); display: flex; align-items: center; justify-content: space-between; }
+    .admin-title { font-size: 20px; font-weight: 800; color: #1b1f24; }
+    .admin-subtitle { color: #5d6b7b; font-size: 13px; margin-top: 4px; }
+    .admin-panel { background: #fff; border-radius: 16px; padding: 24px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+    .admin-panel h2 { font-size: 16px; font-weight: 800; margin: 0 0 16px; color: #1b1f24; border-bottom: 2px solid #f0f4f7; padding-bottom: 10px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group label { font-size: 12px; color: #5d6b7b; font-weight: 600; text-transform: uppercase; }
+    .form-group input, .form-group textarea { border: 1px solid #d6dde5; border-radius: 8px; padding: 9px 12px; font-size: 14px; font-family: inherit; width: 100%; box-sizing: border-box; }
+    .btn-save { background: #1f6f8b; color: #fff; border: none; border-radius: 10px; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .btn-danger { background: #e74c3c; color: #fff; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-add { background: #27ae60; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 8px; }
+    .classe-item { border: 1px solid #d6dde5; border-radius: 10px; padding: 14px; margin-bottom: 10px; background: #f8fafc; }
+    .classe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+    .classe-nom { font-weight: 800; font-size: 15px; color: #1b1f24; }
+    .prof-item { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .prof-item input { border: 1px solid #d6dde5; border-radius: 6px; padding: 6px 8px; font-size: 13px; width: 100%; }
+    .direction-item { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .direction-item input { border: 1px solid #d6dde5; border-radius: 6px; padding: 6px 8px; font-size: 13px; width: 100%; }
+    .success-msg { background: #d4edda; border: 1px solid #27ae60; color: #155724; border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: 600; margin-top: 10px; display: none; }
+    .login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+    .login-card { background: #fff; border-radius: 16px; padding: 32px; max-width: 420px; width: 90%; text-align: center; }
+    .login-card h2 { margin: 0 0 8px; font-size: 20px; }
+    .login-card p { color: #5d6b7b; font-size: 13px; margin-bottom: 20px; }
+    .login-card input { width: 100%; border: 1px solid #d6dde5; border-radius: 10px; padding: 10px 14px; font-size: 16px; text-align: center; box-sizing: border-box; margin-bottom: 12px; }
+    .login-card .btn-save { width: 100%; padding: 12px; }
+    .login-error { color: #e74c3c; font-size: 13px; margin-top: 8px; display: none; }
+    .import-zone { border: 2px dashed #d6dde5; border-radius: 10px; padding: 16px; margin-bottom: 12px; background: #f8fafc; }
+    .import-zone textarea { border: none; background: transparent; width: 100%; font-size: 12px; font-family: monospace; min-height: 100px; resize: vertical; box-sizing: border-box; }
+    .import-zone p { margin: 0 0 8px; font-size: 12px; color: #5d6b7b; }
+    .tabs { display: flex; gap: 0; margin-bottom: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #d6dde5; }
+    .tab { flex: 1; padding: 11px; text-align: center; font-size: 13px; font-weight: 700; cursor: pointer; background: #fff; color: #5d6b7b; border: none; }
+    .tab.active { background: #1f6f8b; color: #fff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .loading { text-align: center; color: #5d6b7b; padding: 20px; }
+    .firebase-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } .prof-item { grid-template-columns: 1fr auto; } .firebase-grid { grid-template-columns: 1fr; } .tabs { flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+
+<!-- Page setup Firebase -->
+<div id="firebase-setup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:none;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:32px 24px;max-width:540px;width:90%;max-height:90vh;overflow-y:auto;">
+    <div style="text-align:center;font-size:36px;margin-bottom:12px;">🔥</div>
+    <h2 style="text-align:center;margin:0 0 8px;">Configuration Firebase</h2>
+    <p style="color:#5d6b7b;font-size:13px;margin-bottom:20px;text-align:center;">
+      Entrez les clés de votre projet Firebase.<br>
+      Trouvez-les dans <a href="https://console.firebase.google.com" target="_blank" style="color:#1f6f8b;">console.firebase.google.com</a> → Paramètres → Vos applications → SDK Web
+    </p>
+    <div class="firebase-grid">
+      <div class="form-group" style="grid-column:1/-1;"><label>API Key *</label><input type="text" id="fb-apikey" placeholder="AIzaSy..."/></div>
+      <div class="form-group"><label>Auth Domain *</label><input type="text" id="fb-authdomain" placeholder="projet.firebaseapp.com"/></div>
+      <div class="form-group"><label>Project ID *</label><input type="text" id="fb-projectid" placeholder="mon-projet"/></div>
+      <div class="form-group"><label>Storage Bucket</label><input type="text" id="fb-storagebucket" placeholder="projet.firebasestorage.app"/></div>
+      <div class="form-group"><label>Messaging Sender ID</label><input type="text" id="fb-senderid" placeholder="123456789"/></div>
+      <div class="form-group" style="grid-column:1/-1;"><label>App ID *</label><input type="text" id="fb-appid" placeholder="1:123456789:web:abc123"/></div>
+    </div>
+    <button class="btn-save" style="width:100%;padding:12px;font-size:15px;" onclick="sauvegarderFirebaseConfig()">🔥 Connecter et continuer</button>
+    <div id="firebase-error" style="color:#e74c3c;font-size:13px;margin-top:8px;display:none;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- Login -->
+<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
+  <div class="login-card">
+    <div style="font-size:36px;margin-bottom:12px;">🔐</div>
+    <h2>Administration</h2>
+    <p>Entrez le mot de passe administrateur.</p>
+    <input type="password" id="login-password" placeholder="Mot de passe" onkeydown="if(event.key==='Enter') verifierMotDePasse()"/>
+    <button class="btn-save" onclick="verifierMotDePasse()">Accéder</button>
+    <div class="login-error" id="login-error">❌ Mot de passe incorrect</div>
+    <div style="margin-top:16px;"><a href="index.html" style="color:#5d6b7b;font-size:13px;">← Retour à l'application</a></div>
+  </div>
+</div>
+
+<!-- Admin -->
+<div class="admin-container" id="admin-content" style="display:none;">
+  <div class="admin-header">
+    <div>
+      <div class="admin-title" id="admin-titre">⚙️ Administration</div>
+      <div class="admin-subtitle" id="admin-etablissement-nom">Chargement...</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button onclick="resetFirebaseConfig()" style="background:none;border:1px solid #d6dde5;border-radius:8px;padding:6px 10px;font-size:11px;color:#5d6b7b;cursor:pointer;">🔄 Firebase</button>
+      <a href="index.html" class="btn-save" style="text-decoration:none;font-size:13px;">← Retour</a>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('etablissement',this)">🏫 Établissement</button>
+    <button class="tab" onclick="switchTab('direction',this)">👤 Direction</button>
+    <button class="tab" onclick="switchTab('classes',this)">👨‍🏫 Professeurs</button>
+    <button class="tab" onclick="switchTab('eleves',this)">🎒 Élèves</button>
+  </div>
+
+  <!-- Établissement -->
+  <div class="tab-content active" id="tab-etablissement">
+    <div class="admin-panel">
+      <h2>Informations de l'établissement</h2>
+      <div class="form-row">
+        <div class="form-group"><label>Nom de l'établissement</label><input type="text" id="etab-nom" placeholder="Collège..."/></div>
+        <div class="form-group"><label>Académie</label><input type="text" id="etab-academie" placeholder="Académie de..."/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Nom de l'association (GIPE, APE...)</label><input type="text" id="etab-association" placeholder="APE..."/></div>
+        <div class="form-group"><label>Email de destination</label><input type="email" id="etab-email" placeholder="contact@..."/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Logo établissement (max 500ko)</label>
+          <input type="file" id="etab-logo-etab" accept="image/*" onchange="previewLogo(this,'preview-etab')"/>
+          <img id="preview-etab" style="max-height:60px;margin-top:6px;display:none;border-radius:6px;"/>
+        </div>
+        <div class="form-group">
+          <label>Logo association (max 500ko)</label>
+          <input type="file" id="etab-logo-asso" accept="image/*" onchange="previewLogo(this,'preview-asso')"/>
+          <img id="preview-asso" style="max-height:60px;margin-top:6px;display:none;border-radius:6px;"/>
+        </div>
+      </div>
+
+  <!-- Classes -->
+  <div class="tab-content" id="tab-classes">
+    <div class="admin-panel">
+      <h2>Import rapide (copier-coller depuis tableur)</h2>
+      <div class="import-zone">
+        <p>Format : <strong>Classe [tab] Matière [tab] Professeur</strong> — une ligne par prof</p>
+        <textarea id="import-data" placeholder="3A	FRANÇAIS	Mme DUPONT Marie&#10;3A	MATHÉMATIQUES	M. MARTIN Jean"></textarea>
+      </div>
+      <button class="btn-save" onclick="importerDonnees()">📥 Importer</button>
+      <div class="success-msg" id="success-import">✅ Import réussi !</div>
+    </div>
+    <div class="admin-panel">
+      <h2>Gestion des classes</h2>
+      <div id="classes-loading" class="loading" style="display:none;">⏳ Chargement...</div>
+      <div id="classes-list"></div>
+      <button class="btn-add" onclick="ajouterClasse()">+ Ajouter une classe</button>
+      <div style="margin-top:16px;">
+        <button class="btn-save" onclick="sauvegarderClasses()">💾 Sauvegarder toutes les classes</button>
+        <div class="success-msg" id="success-classes">✅ Classes sauvegardées !</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Direction -->
+  <div class="tab-content" id="tab-direction">
+    <div class="admin-panel">
+      <h2>Import rapide (copier-coller depuis tableur)</h2>
+      <div class="import-zone">
+        <p>Format : <strong>Titre [tab] Nom</strong> — une ligne par membre</p>
+        <textarea id="import-direction" placeholder="Principale	Mme GRIFFET Sonia&#10;Adjoint	M. DUPONT Jean"></textarea>
+      </div>
+      <button class="btn-save" onclick="importerDirection()">📥 Importer</button>
+      <div class="success-msg" id="success-import-direction">✅ Import réussi !</div>
+    </div>
+    <div class="admin-panel">
+      <h2>Membres de la direction</h2>
+      <p style="font-size:13px;color:#5d6b7b;margin-bottom:12px;">Ces noms apparaîtront dans la liste "Président(e) de séance".</p>
+      <div id="direction-list"></div>
+      <button class="btn-add" onclick="ajouterDirecteur()">+ Ajouter un membre</button>
+      <div style="margin-top:16px;">
+        <button class="btn-save" onclick="sauvegarderDirection()">💾 Sauvegarder</button>
+        <div class="success-msg" id="success-direction">✅ Sauvegardé !</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Élèves -->
+  <div class="tab-content" id="tab-eleves">
+    <div class="admin-panel">
+      <h2>Import des élèves</h2>
+      <div class="import-zone">
+        <p>Format : <strong>Nom [tab] Prénom [tab] Classe</strong> — une ligne par élève</p>
+        <textarea id="import-eleves" placeholder="DUPONT	Marie	3A&#10;MARTIN	Jean	3A&#10;DURAND	Sophie	3B"></textarea>
+      </div>
+      <button class="btn-save" onclick="importerEleves()">📥 Importer</button>
+      <div class="success-msg" id="success-import-eleves">✅ Import réussi !</div>
+    </div>
+    <div class="admin-panel">
+      <h2>Élèves par classe</h2>
+      <div id="eleves-loading" class="loading" style="display:none;">⏳ Chargement...</div>
+      <div id="eleves-list"></div>
+      <button class="btn-add" onclick="ajouterClasseEleves()" style="margin-top:8px;">+ Ajouter une classe</button>
+      <div style="margin-top:12px;">
+        <button class="btn-save" onclick="sauvegarderElevesFirebase()">💾 Sauvegarder les élèves</button>
+        <div class="success-msg" id="success-eleves" style="display:none;">✅ Élèves sauvegardés !</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// FONCTIONS NON-FIREBASE (accessibles depuis les boutons)
+// ============================================================
+
+// Données en mémoire
+var classesData   = {};
+var directionData = [];
+var elevesData    = {};
+var motDePasseAdmin = "admin123";
+var db, docFn, getDocFn, setDocFn;
+
+// Initialisation au chargement
+window.addEventListener("DOMContentLoaded", function() {
+  var savedConfig = localStorage.getItem("crcc_firebase_config");
+  if (!savedConfig) {
+    document.getElementById("firebase-setup").style.display = "flex";
+  } else {
+    document.getElementById("login-overlay").style.display = "flex";
+    chargerMotDePasseEtAfficher();
+  }
+});
+
+function chargerMotDePasseEtAfficher() {
+  // Le mot de passe Firebase sera chargé après init Firebase
+  // On affiche juste le login
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll(".tab").forEach(function(t) { t.classList.remove("active"); });
+  document.querySelectorAll(".tab-content").forEach(function(t) { t.classList.remove("active"); });
+  document.getElementById("tab-" + tab).classList.add("active");
+  if (btn) btn.classList.add("active");
+}
+
+function sauvegarderFirebaseConfig() {
+  var apiKey        = document.getElementById("fb-apikey").value.trim();
+  var authDomain    = document.getElementById("fb-authdomain").value.trim();
+  var projectId     = document.getElementById("fb-projectid").value.trim();
+  var storageBucket = document.getElementById("fb-storagebucket").value.trim();
+  var senderId      = document.getElementById("fb-senderid").value.trim();
+  var appId         = document.getElementById("fb-appid").value.trim();
+  var errEl         = document.getElementById("firebase-error");
+
+  if (!apiKey || !authDomain || !projectId || !appId) {
+    errEl.textContent = "Veuillez remplir les champs obligatoires (*)";
+    errEl.style.display = "block";
+    return;
+  }
+
+  var config = { apiKey: apiKey, authDomain: authDomain, projectId: projectId, storageBucket: storageBucket, messagingSenderId: senderId, appId: appId };
+  localStorage.setItem("crcc_firebase_config", JSON.stringify(config));
+  window.location.reload();
+}
+
+function resetFirebaseConfig() {
+  if (confirm("Réinitialiser la configuration Firebase ?")) {
+    localStorage.removeItem("crcc_firebase_config");
+    localStorage.removeItem("crcc_admin_mdp");
+    window.location.reload();
   }
 }
+
+function verifierMotDePasse() {
+  var mdp = document.getElementById("login-password").value;
+  var mdpCache = localStorage.getItem("crcc_admin_mdp") || "admin123";
+
+  if (mdp === mdpCache) {
+    document.getElementById("login-overlay").style.display = "none";
+    document.getElementById("admin-content").style.display = "block";
+    chargerTout();
+  } else if (mdp === motDePasseAdmin) {
+    localStorage.setItem("crcc_admin_mdp", motDePasseAdmin);
+    document.getElementById("login-overlay").style.display = "none";
+    document.getElementById("admin-content").style.display = "block";
+    chargerTout();
+  } else {
+    document.getElementById("login-error").style.display = "block";
+  }
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function renderClasses() {
+  var container = document.getElementById("classes-list");
+  container.innerHTML = "";
+  var classes = Object.keys(classesData).sort();
+
+  if (classes.length === 0) {
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucune classe. Utilisez l\'import ou ajoutez manuellement.</p>';
+    return;
+  }
+
+  classes.forEach(function(nom) {
+    var classe = classesData[nom];
+    var div = document.createElement("div");
+    div.className = "classe-item";
+
+    var profsHtml = (classe.profs || []).map(function(p, i) {
+      return '<div class="prof-item">' +
+        '<input type="text" value="' + (p.matiere || "") + '" placeholder="Matière" oninput="classesData[\'' + nom + '\'].profs[' + i + '].matiere=this.value"/>' +
+        '<input type="text" value="' + (p.prof || "") + '" placeholder="Professeur" oninput="classesData[\'' + nom + '\'].profs[' + i + '].prof=this.value"/>' +
+        '<button class="btn-danger" onclick="supprimerProf(\'' + nom + '\',' + i + ')">✕</button>' +
+        '</div>';
+    }).join("");
+
+    div.innerHTML =
+      '<div class="classe-header">' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+          '<div class="classe-nom">Classe ' + nom + '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<span style="font-size:12px;color:#5d6b7b;">Code :</span>' +
+            '<input type="text" value="' + (classe.code || "") + '" placeholder="Code" style="width:80px;border:1px solid #d6dde5;border-radius:6px;padding:4px 8px;font-size:13px;" oninput="classesData[\'' + nom + '\'].code=this.value"/>' +
+          '</div>' +
+        '</div>' +
+        '<button class="btn-danger" onclick="supprimerClasse(\'' + nom + '\')">Supprimer</button>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;">' +
+        '<span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;">Matière</span>' +
+        '<span style="font-size:11px;color:#5d6b7b;font-weight:700;text-transform:uppercase;">Professeur</span>' +
+        '<span></span>' +
+      '</div>' +
+      profsHtml +
+      '<button class="btn-add" style="font-size:12px;padding:5px 10px;" onclick="ajouterProf(\'' + nom + '\')">+ Ajouter un prof</button>';
+
+    container.appendChild(div);
+  });
+}
+
+function renderDirection() {
+  var container = document.getElementById("direction-list");
+  container.innerHTML = "";
+  if (directionData.length === 0) {
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun membre. Utilisez l\'import ou ajoutez manuellement.</p>';
+    return;
+  }
+  directionData.forEach(function(membre, i) {
+    var titre = (membre && membre.titre) ? membre.titre : "";
+    var nom   = (membre && membre.nom)   ? membre.nom   : (typeof membre === "string" ? membre : "");
+    var div = document.createElement("div");
+    div.className = "prof-item";
+    div.innerHTML =
+      '<input type="text" value="' + titre + '" placeholder="Titre (Principale, Adjoint...)" oninput="directionData[' + i + '].titre=this.value"/>' +
+      '<input type="text" value="' + nom + '" placeholder="Nom complet" oninput="directionData[' + i + '].nom=this.value"/>' +
+      '<button class="btn-danger" onclick="supprimerDirecteur(' + i + ')">✕</button>';
+    container.appendChild(div);
+  });
+}
+
+function renderEleves() {
+  var container = document.getElementById("eleves-list");
+  container.innerHTML = "";
+  if (!window.elevesData) window.elevesData = {};
+  var classes = Object.keys(window.elevesData).sort();
+
+  if (classes.length === 0) {
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun eleve. Utilisez l\'import ou ajoutez une classe.</p>';
+    return;
+  }
+
+  classes.forEach(function(nom) {
+    var eleves = window.elevesData[nom] || [];
+    var div = document.createElement("div");
+    div.className = "classe-item";
+
+    // Header
+    var header = document.createElement("div");
+    header.className = "classe-header";
+    var titre = document.createElement("strong");
+    titre.textContent = "Classe " + nom + " — " + eleves.length + " élève(s)";
+    var btnVider = document.createElement("button");
+    btnVider.className = "btn-danger";
+    btnVider.textContent = "Vider la classe";
+    btnVider.addEventListener("click", (function(n){ return function(){ supprimerElevesClasse(n); }; })(nom));
+    header.appendChild(titre);
+    header.appendChild(btnVider);
+    div.appendChild(header);
+
+    // Colonnes
+    var cols = document.createElement("div");
+    cols.style.cssText = "display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;margin-top:8px;";
+    var c1 = document.createElement("span"); c1.textContent = "NOM"; c1.style.cssText = "font-size:11px;color:#5d6b7b;font-weight:700;";
+    var c2 = document.createElement("span"); c2.textContent = "PRÉNOM"; c2.style.cssText = "font-size:11px;color:#5d6b7b;font-weight:700;";
+    var c3 = document.createElement("span");
+    cols.appendChild(c1); cols.appendChild(c2); cols.appendChild(c3);
+    div.appendChild(cols);
+
+    // Lignes élèves — tout en createElement, événements directs
+    eleves.forEach(function(e, i) {
+      var row = document.createElement("div");
+      row.className = "prof-item";
+      row.style.marginBottom = "6px";
+
+      var inp1 = document.createElement("input");
+      inp1.type = "text";
+      inp1.value = e.nom || "";
+      inp1.placeholder = "Nom";
+      inp1.style.cssText = "border:1px solid #d6dde5;border-radius:6px;padding:6px 8px;font-size:13px;width:100%;";
+      inp1.addEventListener("input", (function(n, idx) {
+        return function() { window.elevesData[n][idx].nom = this.value.toUpperCase(); };
+      })(nom, i));
+
+      var inp2 = document.createElement("input");
+      inp2.type = "text";
+      inp2.value = e.prenom || "";
+      inp2.placeholder = "Prénom";
+      inp2.style.cssText = "border:1px solid #d6dde5;border-radius:6px;padding:6px 8px;font-size:13px;width:100%;";
+      inp2.addEventListener("input", (function(n, idx) {
+        return function() { window.elevesData[n][idx].prenom = this.value; };
+      })(nom, i));
+
+      var btn = document.createElement("button");
+      btn.className = "btn-danger";
+      btn.textContent = "✕";
+      btn.addEventListener("click", (function(n, idx) {
+        return function() { supprimerEleve(n, idx); };
+      })(nom, i));
+
+      row.appendChild(inp1);
+      row.appendChild(inp2);
+      row.appendChild(btn);
+      div.appendChild(row);
+    });
+
+    // Bouton ajouter
+    var btnAjouter = document.createElement("button");
+    btnAjouter.className = "btn-add";
+    btnAjouter.style.cssText = "font-size:12px;padding:5px 10px;margin-top:6px;";
+    btnAjouter.textContent = "+ Ajouter un élève";
+    btnAjouter.addEventListener("click", (function(n){ return function(){ ajouterEleve(n); }; })(nom));
+    div.appendChild(btnAjouter);
+
+    container.appendChild(div);
+  });
+}
+
+// ============================================================
+// ACTIONS
+// ============================================================
+function ajouterClasse() {
+  var nom = prompt("Nom de la classe (ex: 3A) :").trim().toUpperCase();
+  if (!nom) return;
+  if (classesData[nom]) { alert("Cette classe existe déjà !"); return; }
+  classesData[nom] = { code: "", profs: [] };
+  renderClasses();
+}
+
+function supprimerClasse(nom) {
+  if (!confirm("Supprimer la classe " + nom + " ?")) return;
+  delete classesData[nom];
+  renderClasses();
+}
+
+function ajouterProf(nomClasse) {
+  classesData[nomClasse].profs.push({ matiere: "", prof: "" });
+  renderClasses();
+}
+
+function supprimerProf(nomClasse, idx) {
+  classesData[nomClasse].profs.splice(idx, 1);
+  renderClasses();
+}
+
+function ajouterDirecteur() {
+  directionData.push({ titre: "", nom: "" });
+  renderDirection();
+}
+
+function supprimerDirecteur(idx) {
+  directionData.splice(idx, 1);
+  renderDirection();
+}
+
+function previewLogo(input, previewId) {
+  var file = input.files[0];
+  if (!file) return;
+  if (file.size > 500000) { alert("Image trop lourde (max 500ko)"); input.value = ""; return; }
+  var reader = new FileReader();
+  reader.onload = function(r) {
+    var img = document.getElementById(previewId);
+    img.src = r.target.result;
+    img.style.display = "block";
+  };
+  reader.readAsDataURL(file);
+}
+
+function ajouterClasseEleves() {
+  var nom = prompt("Nom de la classe (ex: 3A) :").trim().toUpperCase();
+  if (!nom) return;
+  if (!window.elevesData) window.elevesData = {};
+  if (!window.elevesData[nom]) window.elevesData[nom] = [];
+  renderEleves();
+}
+
+function ajouterEleve(classe) {
+  if (!window.elevesData) window.elevesData = {};
+  if (!window.elevesData[classe]) window.elevesData[classe] = [];
+  window.elevesData[classe].push({ nom: "", prenom: "" });
+  renderEleves();
+}
+
+function supprimerEleve(classe, idx) {
+  window.elevesData[classe].splice(idx, 1);
+  renderEleves();
+}
+
+function supprimerElevesClasse(classe) {
+  if (!confirm("Supprimer tous les élèves de la classe " + classe + " ?")) return;
+  delete window.elevesData[classe];
+  sauvegarderElevesFirebase();
+  renderEleves();
+}
+
+function importerDirection() {
+  var texte = document.getElementById("import-direction").value.trim();
+  if (!texte) { alert("Collez vos données."); return; }
+  var lignes = texte.split("\n");
+  var nbImport = 0;
+  lignes.forEach(function(ligne) {
+    var cols = ligne.split("\t");
+    var titre = cols.length >= 2 ? cols[0].trim() : "";
+    var nom   = cols.length >= 2 ? cols[1].trim() : cols[0].trim();
+    if (!nom) return;
+    directionData.push({ titre: titre, nom: nom });
+    nbImport++;
+  });
+  renderDirection();
+  document.getElementById("import-direction").value = "";
+  var msg = document.getElementById("success-import-direction");
+  msg.textContent = "✅ " + nbImport + " membre(s) importé(s) !";
+  msg.style.display = "block";
+  setTimeout(function() { msg.style.display = "none"; }, 3000);
+}
+
+function importerDonnees() {
+  var texte = document.getElementById("import-data").value.trim();
+  if (!texte) { alert("Collez vos données."); return; }
+  var lignes = texte.split("\n");
+  var nbImport = 0;
+  lignes.forEach(function(ligne) {
+    var cols = ligne.split("\t");
+    if (cols.length < 3) return;
+    var classe  = cols[0].trim().toUpperCase();
+    var matiere = cols[1].trim();
+    var prof    = cols[2].trim();
+    if (!classe || !matiere || !prof) return;
+    if (!classesData[classe]) classesData[classe] = { code: "", profs: [] };
+    var existe = classesData[classe].profs.some(function(p) { return p.matiere === matiere && p.prof === prof; });
+    if (!existe) { classesData[classe].profs.push({ matiere: matiere, prof: prof }); nbImport++; }
+  });
+  renderClasses();
+  document.getElementById("import-data").value = "";
+  var msg = document.getElementById("success-import");
+  msg.textContent = "✅ " + nbImport + " ligne(s) importée(s) !";
+  msg.style.display = "block";
+  setTimeout(function() { msg.style.display = "none"; }, 3000);
+}
+
+function importerEleves() {
+  var texte = document.getElementById("import-eleves").value.trim();
+  if (!texte) { alert("Collez vos données."); return; }
+  var lignes = texte.split("\n");
+  var newEleves = {};
+  var nbImport = 0;
+  lignes.forEach(function(ligne) {
+    var cols = ligne.split("\t");
+    if (cols.length < 3) return;
+    var nom    = cols[0].trim().toUpperCase();
+    var prenom = cols[1].trim();
+    var classe = cols[2].trim().toUpperCase();
+    if (!nom || !prenom || !classe) return;
+    if (!newEleves[classe]) newEleves[classe] = [];
+    newEleves[classe].push({ nom: nom, prenom: prenom });
+    nbImport++;
+  });
+  if (!window.elevesData) window.elevesData = {};
+  Object.keys(newEleves).forEach(function(cls) { window.elevesData[cls] = newEleves[cls]; });
+  sauvegarderElevesFirebase();
+  renderEleves();
+  document.getElementById("import-eleves").value = "";
+  var msg = document.getElementById("success-import-eleves");
+  msg.textContent = "✅ " + nbImport + " élève(s) importé(s) !";
+  msg.style.display = "block";
+  setTimeout(function() { msg.style.display = "none"; }, 3000);
+}
+
+function afficherSucces(id) {
+  var el = document.getElementById(id);
+  el.style.display = "block";
+  setTimeout(function() { el.style.display = "none"; }, 3000);
+}
+
+// Ces fonctions appellent Firebase via les fonctions exposées par le module
+function sauvegarderEtablissement() { if (window._fbSauvegarderEtablissement) window._fbSauvegarderEtablissement(); }
+function sauvegarderClasses()       { if (window._fbSauvegarderClasses)       window._fbSauvegarderClasses(); }
+function sauvegarderDirection()     { if (window._fbSauvegarderDirection)      window._fbSauvegarderDirection(); }
+function sauvegarderElevesFirebase(){ if (window._fbSauvegarderEleves)         window._fbSauvegarderEleves(); }
+function chargerTout()              { 
+  renderEleves(); // Afficher même si vide
+  renderClasses();
+  renderDirection();
+  if (window._fbChargerTout) window._fbChargerTout(); 
+}
+</script>
+
+<!-- Firebase (module séparé) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  var savedConfig = localStorage.getItem("crcc_firebase_config");
+  if (savedConfig) { // Seulement si Firebase est configuré
+  var firebaseConfig = JSON.parse(savedConfig);
+  var app = initializeApp(firebaseConfig);
+  var db  = getFirestore(app);
+
+  // Charger le mot de passe depuis Firebase au démarrage
+  try {
+    var snap = await getDoc(doc(db, "config", "etablissement"));
+    if (snap.exists() && snap.data().motDePasseAdmin) {
+      window.motDePasseAdmin = snap.data().motDePasseAdmin;
+      localStorage.setItem("crcc_admin_mdp", snap.data().motDePasseAdmin);
+    }
+  } catch(e) {}
+
+  // Exposer les fonctions Firebase
+  window._fbChargerTout = async function() {
+    // Config établissement
+    try {
+      var snap = await getDoc(doc(db, "config", "etablissement"));
+      if (snap.exists()) {
+        var data = snap.data();
+        document.getElementById("etab-nom").value         = data.nom           || "";
+        document.getElementById("etab-academie").value    = data.academie      || "";
+        document.getElementById("etab-email").value       = data.emailGIPE     || "";
+        document.getElementById("etab-association").value = data.nomAssociation || "";
+        document.getElementById("admin-etablissement-nom").textContent = data.nom || "Non configuré";
+        window.motDePasseAdmin = data.motDePasseAdmin || "admin123";
+        // Logos
+        if (data.logoEtablissement) {
+          var img1 = document.getElementById("preview-etab");
+          if (img1) { img1.src = data.logoEtablissement; img1.style.display = "block"; }
+        }
+        if (data.logoAssociation) {
+          var img2 = document.getElementById("preview-asso");
+          if (img2) { img2.src = data.logoAssociation; img2.style.display = "block"; }
+        }
+      }
+    } catch(e) {}
+
+    // Classes
+    try {
+      var snap2 = await getDoc(doc(db, "config", "classes"));
+      if (snap2.exists()) { window.classesData = snap2.data(); }
+    } catch(e) {}
+    document.getElementById("classes-loading").style.display = "none";
+    renderClasses();
+
+    // Direction
+    try {
+      var snap3 = await getDoc(doc(db, "config", "direction"));
+      if (snap3.exists()) {
+        // Supporter les deux formats : membres (nouveau) ou noms (ancien)
+        if (snap3.data().membres) {
+          window.directionData = snap3.data().membres;
+        } else {
+          // Convertir l'ancien format en nouveau
+          window.directionData = (snap3.data().noms || []).map(function(n) { return { titre: "", nom: n }; });
+        }
+      }
+    } catch(e) {}
+    renderDirection();
+
+    // Élèves
+    try {
+      var snap4 = await getDoc(doc(db, "config", "eleves"));
+      if (snap4.exists()) { window.elevesData = snap4.data(); }
+    } catch(e) {}
+    renderEleves();
+
+    // Mettre à jour le sous-titre
+    var nom = document.getElementById("etab-nom").value;
+    document.getElementById("admin-etablissement-nom").textContent = nom || "Configuration en cours...";
+  };
+
+  async function lireLogoBase64(inputId) {
+    return new Promise(function(resolve) {
+      var input = document.getElementById(inputId);
+      if (!input || !input.files[0]) { resolve(null); return; }
+      var reader = new FileReader();
+      reader.onload = function(r) { resolve(r.target.result); };
+      reader.readAsDataURL(input.files[0]);
+    });
+  }
+
+  window._fbSauvegarderEtablissement = async function() {
+    var nom         = document.getElementById("etab-nom").value.trim();
+    var academie    = document.getElementById("etab-academie").value.trim();
+    var email       = document.getElementById("etab-email").value.trim();
+    var association = document.getElementById("etab-association").value.trim();
+    var mdp         = document.getElementById("etab-mdp").value.trim();
+    var nouveauMdp  = mdp || window.motDePasseAdmin;
+
+    // Logos en base64
+    var logoEtab = await lireLogoBase64("etab-logo-etab");
+    var logoAsso = await lireLogoBase64("etab-logo-asso");
+
+    var data = { nom: nom, academie: academie, emailGIPE: email, nomAssociation: association, motDePasseAdmin: nouveauMdp };
+    if (logoEtab) data.logoEtablissement = logoEtab;
+    if (logoAsso) data.logoAssociation   = logoAsso;
+
+    try {
+      await setDoc(doc(db, "config", "etablissement"), data, { merge: true });
+      window.motDePasseAdmin = nouveauMdp;
+      localStorage.setItem("crcc_admin_mdp", nouveauMdp);
+      document.getElementById("admin-etablissement-nom").textContent = nom || "Non configuré";
+      document.getElementById("etab-mdp").value = "";
+      afficherSucces("success-etablissement");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  window._fbSauvegarderClasses = async function() {
+    try {
+      await setDoc(doc(db, "config", "classes"), window.classesData);
+      afficherSucces("success-classes");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  window._fbSauvegarderDirection = async function() {
+    try {
+      // Convertir en format texte pour la compatibilité avec l'app principale
+      // On stocke titre + nom fusionnés pour setPrincipalOptions
+      var nomsFusionnes = window.directionData.map(function(m) {
+        if (typeof m === "string") return m;
+        return ((m.titre ? m.titre + " " : "") + (m.nom || "")).trim();
+      }).filter(function(n) { return n; });
+      await setDoc(doc(db, "config", "direction"), { noms: nomsFusionnes, membres: window.directionData });
+      afficherSucces("success-direction");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  window._fbSauvegarderEleves = async function() {
+    try {
+      await setDoc(doc(db, "config", "eleves"), window.elevesData);
+      afficherSucces("success-eleves");
+    } catch(e) { alert("Erreur : " + e.message); }
+  };
+
+  } // fin if(savedConfig)
+</script>
+</body>
+</html>
