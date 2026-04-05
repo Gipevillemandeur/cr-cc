@@ -364,9 +364,85 @@ function renderEleves() {
   var classes = Object.keys(window.elevesData).sort();
 
   if (classes.length === 0) {
-    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun eleve. Utilisez l\'import ou ajoutez une classe manuellement.</p>';
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucun eleve. Utilisez l\'import ou ajoutez une classe.</p>';
     return;
   }
+
+  classes.forEach(function(nom) {
+    var eleves = window.elevesData[nom] || [];
+    var div = document.createElement("div");
+    div.className = "classe-item";
+
+    // Header
+    var header = document.createElement("div");
+    header.className = "classe-header";
+    var titre = document.createElement("strong");
+    titre.textContent = "Classe " + nom + " — " + eleves.length + " élève(s)";
+    var btnVider = document.createElement("button");
+    btnVider.className = "btn-danger";
+    btnVider.textContent = "Vider la classe";
+    btnVider.addEventListener("click", (function(n){ return function(){ supprimerElevesClasse(n); }; })(nom));
+    header.appendChild(titre);
+    header.appendChild(btnVider);
+    div.appendChild(header);
+
+    // Colonnes
+    var cols = document.createElement("div");
+    cols.style.cssText = "display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:4px;margin-top:8px;";
+    var c1 = document.createElement("span"); c1.textContent = "NOM"; c1.style.cssText = "font-size:11px;color:#5d6b7b;font-weight:700;";
+    var c2 = document.createElement("span"); c2.textContent = "PRÉNOM"; c2.style.cssText = "font-size:11px;color:#5d6b7b;font-weight:700;";
+    var c3 = document.createElement("span");
+    cols.appendChild(c1); cols.appendChild(c2); cols.appendChild(c3);
+    div.appendChild(cols);
+
+    // Lignes élèves — tout en createElement, événements directs
+    eleves.forEach(function(e, i) {
+      var row = document.createElement("div");
+      row.className = "prof-item";
+      row.style.marginBottom = "6px";
+
+      var inp1 = document.createElement("input");
+      inp1.type = "text";
+      inp1.value = e.nom || "";
+      inp1.placeholder = "Nom";
+      inp1.style.cssText = "border:1px solid #d6dde5;border-radius:6px;padding:6px 8px;font-size:13px;width:100%;";
+      inp1.addEventListener("input", (function(n, idx) {
+        return function() { window.elevesData[n][idx].nom = this.value.toUpperCase(); };
+      })(nom, i));
+
+      var inp2 = document.createElement("input");
+      inp2.type = "text";
+      inp2.value = e.prenom || "";
+      inp2.placeholder = "Prénom";
+      inp2.style.cssText = "border:1px solid #d6dde5;border-radius:6px;padding:6px 8px;font-size:13px;width:100%;";
+      inp2.addEventListener("input", (function(n, idx) {
+        return function() { window.elevesData[n][idx].prenom = this.value; };
+      })(nom, i));
+
+      var btn = document.createElement("button");
+      btn.className = "btn-danger";
+      btn.textContent = "✕";
+      btn.addEventListener("click", (function(n, idx) {
+        return function() { supprimerEleve(n, idx); };
+      })(nom, i));
+
+      row.appendChild(inp1);
+      row.appendChild(inp2);
+      row.appendChild(btn);
+      div.appendChild(row);
+    });
+
+    // Bouton ajouter
+    var btnAjouter = document.createElement("button");
+    btnAjouter.className = "btn-add";
+    btnAjouter.style.cssText = "font-size:12px;padding:5px 10px;margin-top:6px;";
+    btnAjouter.textContent = "+ Ajouter un élève";
+    btnAjouter.addEventListener("click", (function(n){ return function(){ ajouterEleve(n); }; })(nom));
+    div.appendChild(btnAjouter);
+
+    container.appendChild(div);
+  });
+}
 
   classes.forEach(function(nom) {
     var eleves = window.elevesData[nom] || [];
