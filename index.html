@@ -347,7 +347,13 @@
           }
         } catch(e) { console.warn("Config établissement:", e); }
 
-        if (typeof loadConfig === "function") loadConfig();
+        // Démarrer l'app une fois Firebase prêt
+        if (typeof window._demarrerApp === "function") {
+          window._demarrerApp();
+        } else {
+          // Fallback si app.js pas encore chargé
+          window.addEventListener("appready", () => window._demarrerApp());
+        }
       });
     </script>
     <style>

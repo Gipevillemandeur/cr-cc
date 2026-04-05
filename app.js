@@ -1468,23 +1468,12 @@ const _origGeneratePDF = generatePDF;
 // ============================================================
 setupBindings();
 
-// loadConfig() est appelé depuis le module Firebase dans index.html
-// après initialisation de Firebase
-// Fallback si Firebase pas encore prêt
-if (window._firebaseDb) {
+// loadConfig() est appelé par window._demarrerApp()
+// qui est déclenché par le module Firebase dans index.html une fois Firebase prêt
+window._demarrerApp = function() {
   loadConfig().then(() => {
     if (!verifierLienRelecture()) {
       setTimeout(verifierSauvegarde, 1500);
     }
   });
-} else {
-  window.addEventListener("load", () => {
-    setTimeout(() => {
-      loadConfig().then(() => {
-        if (!verifierLienRelecture()) {
-          setTimeout(verifierSauvegarde, 1500);
-        }
-      });
-    }, 500);
-  });
-}
+};
