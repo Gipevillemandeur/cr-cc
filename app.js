@@ -1036,13 +1036,16 @@ async function generatePDF(apercuSeulement = false) {
     return y + blockH + 3;
   }
 
-  // Chargement des deux logos PNG
-  let logoAcad = null;
-  let logoParents = null;
-  try {
-    logoAcad    = await imageToBase64("assets/logo-academie.png");
-    logoParents = await imageToBase64("assets/logo-parents.png");
-  } catch(e) { console.warn("Logos non charges", e); }
+  // Chargement des logos depuis Firebase (stockés en base64) ou fichiers par défaut
+  let logoAcad    = window._logoEtablissement || null;
+  let logoParents = window._logoAssociation   || null;
+  // Fallback sur les fichiers PNG si pas de logo Firebase
+  if (!logoAcad) {
+    try { logoAcad    = await imageToBase64("assets/logo-academie.png");  } catch(e) {}
+  }
+  if (!logoParents) {
+    try { logoParents = await imageToBase64("assets/logo-parents.png"); } catch(e) {}
+  }
 
   // ============ PAGE 1 ============
   let y = margin;
@@ -1168,6 +1171,14 @@ function estMobile() {
 }
 
 async function envoyerAuGIPE(doc, classe, trimestre, date, nomFichier) {
+  // Vérifier qu'une adresse email est configurée
+  if (!window._emailGIPE) {
+    doc.save(nomFichier + ".pdf");
+    alert("⚠️ Aucune adresse email de destination configurée. Le PDF a été téléchargé. Configurez l'email dans le panneau d'administration.");
+    effacerSauvegarde();
+    return;
+  }
+
   // Télécharger le PDF sur l'appareil (toujours, desktop et mobile)
   doc.save(nomFichier + ".pdf");
 
