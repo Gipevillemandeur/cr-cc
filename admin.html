@@ -558,7 +558,7 @@ function renderEleves() {
   if (!window._elevesOuverts) window._elevesOuverts = {};
 
   classes.forEach(function(nom) {
-    var eleves = (window.elevesData[nom] || []).slice().sort(function(a, b) { return (a.nom||"").localeCompare(b.nom||"", "fr"); });
+    var eleves = window.elevesData[nom] || [];
     var estOuvert = window._elevesOuverts[nom] === true; // fermé par défaut
 
     var div = document.createElement("div");
@@ -1015,6 +1015,12 @@ function chargerTout() {
 
   window._fbSauvegarderEleves = async function() {
     try {
+      // Trier chaque classe par nom avant sauvegarde
+      Object.keys(window.elevesData).forEach(function(cls) {
+        window.elevesData[cls].sort(function(a, b) {
+          return (a.nom||"").localeCompare(b.nom||"", "fr");
+        });
+      });
       await setDoc(doc(db, "config", "eleves"), window.elevesData);
       afficherSucces("success-eleves");
       renderCodes(); // Mettre à jour les badges
