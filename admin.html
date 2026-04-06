@@ -463,15 +463,56 @@ function renderCodes() {
   grid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:12px;";
 
   classes.forEach(function(nom) {
-    var classe = classesData[nom];
-    var label = document.createElement("label");
-    label.style.cssText = "display:flex;align-items:center;gap:10px;background:#f4f6f8;border-radius:10px;padding:10px 14px;";
-    label.innerHTML =
-      '<strong style="font-size:14px;min-width:40px;">Classe ' + nom + '</strong>' +
-      '<input type="text" value="' + (classe.code || "") + '" placeholder="Code d\'accès" ' +
-        'style="flex:1;border:1px solid #d6dde5;border-radius:6px;padding:6px 10px;font-size:14px;letter-spacing:2px;" ' +
-        'oninput="classesData[\'' + nom + '\'].code=this.value"/>';
-    grid.appendChild(label);
+    var classe  = classesData[nom];
+    var nbProfs = (classe.profs || []).length;
+    var nbEleves = ((window.elevesData || {})[nom] || []).length;
+
+    var card = document.createElement("div");
+    card.style.cssText = "background:#f4f6f8;border-radius:10px;padding:12px 14px;";
+
+    // Ligne titre + compteurs
+    var titre = document.createElement("div");
+    titre.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;";
+
+    var nomSpan = document.createElement("strong");
+    nomSpan.style.cssText = "font-size:14px;";
+    nomSpan.textContent = "Classe " + nom;
+
+    var badgeProfs = document.createElement("span");
+    badgeProfs.style.cssText = "font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;" +
+      (nbProfs > 0 ? "background:#d4edda;color:#155724;" : "background:#fff3cd;color:#856404;");
+    badgeProfs.textContent = nbProfs > 0 ? nbProfs + " prof" + (nbProfs > 1 ? "s" : "") : "⚠️ pas de profs";
+
+    var badgeEleves = document.createElement("span");
+    badgeEleves.style.cssText = "font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;" +
+      (nbEleves > 0 ? "background:#d4edda;color:#155724;" : "background:#fff3cd;color:#856404;");
+    badgeEleves.textContent = nbEleves > 0 ? nbEleves + " élève" + (nbEleves > 1 ? "s" : "") : "⚠️ pas d'élèves";
+
+    titre.appendChild(nomSpan);
+    titre.appendChild(badgeProfs);
+    titre.appendChild(badgeEleves);
+    card.appendChild(titre);
+
+    // Champ code
+    var codeWrap = document.createElement("div");
+    codeWrap.style.cssText = "display:flex;align-items:center;gap:8px;";
+
+    var codeLabel = document.createElement("span");
+    codeLabel.style.cssText = "font-size:12px;color:#5d6b7b;font-weight:600;white-space:nowrap;";
+    codeLabel.textContent = "Code :";
+
+    var codeInput = document.createElement("input");
+    codeInput.type = "text";
+    codeInput.value = classe.code || "";
+    codeInput.placeholder = "Code d\'accès";
+    codeInput.style.cssText = "flex:1;border:1px solid #d6dde5;border-radius:6px;padding:6px 10px;font-size:14px;letter-spacing:2px;";
+    codeInput.addEventListener("input", (function(n){ return function(){ classesData[n].code = this.value; }; })(nom));
+
+    codeWrap.appendChild(codeLabel);
+    codeWrap.appendChild(codeInput);
+    card.appendChild(codeWrap);
+
+    grid.appendChild(card);
   });
 
   container.appendChild(grid);
@@ -895,6 +936,7 @@ function chargerTout() {
       if (snap4.exists()) { window.elevesData = snap4.data(); }
     } catch(e) {}
     renderEleves();
+    renderCodes(); // Mettre à jour les badges élèves dans l'onglet Codes
 
     // Mettre à jour le sous-titre
     var nom = document.getElementById("etab-nom").value;
