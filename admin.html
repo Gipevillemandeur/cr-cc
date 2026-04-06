@@ -306,6 +306,11 @@ function switchTab(tab, btn) {
   document.querySelectorAll(".tab-content").forEach(function(t) { t.classList.remove("active"); });
   document.getElementById("tab-" + tab).classList.add("active");
   if (btn) btn.classList.add("active");
+  // Rafraîchir au clic sur chaque onglet
+  if (tab === "codes")      renderCodes();
+  if (tab === "classes")    renderClasses();
+  if (tab === "direction")  renderDirection();
+  if (tab === "eleves")     renderEleves();
 }
 
 function sauvegarderFirebaseConfig() {
@@ -1012,6 +1017,7 @@ function chargerTout() {
     try {
       await setDoc(doc(db, "config", "eleves"), window.elevesData);
       afficherSucces("success-eleves");
+      renderCodes(); // Mettre à jour les badges
     } catch(e) { alert("Erreur : " + e.message); }
   };
 
