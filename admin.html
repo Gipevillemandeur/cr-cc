@@ -255,6 +255,51 @@ function chargerMotDePasseEtAfficher() {
   // On affiche juste le login
 }
 
+// Modale de confirmation générique (remplace confirm() natif)
+function confirmerAction(message, callback) {
+  var overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;";
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);text-align:center;">' +
+      '<div style="font-size:14px;color:#1b1f24;margin-bottom:20px;line-height:1.6;">' + message + '</div>' +
+      '<div style="display:flex;gap:10px;">' +
+        '<button id="confirm-ok" style="flex:1;background:#e74c3c;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;">✅ Confirmer</button>' +
+        '<button id="confirm-cancel" style="flex:1;background:#f4f6f8;color:#5d6b7b;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;">✖ Annuler</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  document.getElementById("confirm-ok").onclick = function() { overlay.remove(); callback(); };
+  document.getElementById("confirm-cancel").onclick = function() { overlay.remove(); };
+}
+
+// Saisie texte générique (remplace prompt() natif)
+function saisirTexte(message, placeholder, callback) {
+  var overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;";
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);">' +
+      '<div style="font-size:14px;color:#1b1f24;font-weight:600;margin-bottom:12px;">' + message + '</div>' +
+      '<input id="saisir-input" type="text" placeholder="' + placeholder + '" ' +
+        'style="width:100%;border:1px solid #d6dde5;border-radius:8px;padding:10px 12px;font-size:15px;box-sizing:border-box;margin-bottom:14px;" />' +
+      '<div style="display:flex;gap:10px;">' +
+        '<button id="saisir-ok" style="flex:1;background:#1f6f8b;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;">✅ Valider</button>' +
+        '<button id="saisir-cancel" style="flex:1;background:#f4f6f8;color:#5d6b7b;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;">✖ Annuler</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  var input = document.getElementById("saisir-input");
+  input.focus();
+  var valider = function() {
+    var val = input.value.trim();
+    if (!val) return;
+    overlay.remove();
+    callback(val);
+  };
+  input.addEventListener("keydown", function(e) { if (e.key === "Enter") valider(); });
+  document.getElementById("saisir-ok").onclick = valider;
+  document.getElementById("saisir-cancel").onclick = function() { overlay.remove(); };
+}
+
 function switchTab(tab, btn) {
   document.querySelectorAll(".tab").forEach(function(t) { t.classList.remove("active"); });
   document.querySelectorAll(".tab-content").forEach(function(t) { t.classList.remove("active"); });
@@ -283,11 +328,11 @@ function sauvegarderFirebaseConfig() {
 }
 
 function resetFirebaseConfig() {
-  if (confirm("Réinitialiser la configuration Firebase ?")) {
+  confirmerAction("Réinitialiser la configuration Firebase ?<br><small style=\"color:#e74c3c;\">Vous devrez reconfigurer les clés.</small>", function() {
     localStorage.removeItem("crcc_firebase_config");
     localStorage.removeItem("crcc_admin_mdp");
     window.location.reload();
-  }
+  });
 }
 
 function verifierMotDePasse() {
@@ -572,17 +617,19 @@ function renderEleves() {
 // ACTIONS
 // ============================================================
 function ajouterClasse() {
-  var nom = prompt("Nom de la classe (ex: 3A) :").trim().toUpperCase();
-  if (!nom) return;
-  if (classesData[nom]) { alert("Cette classe existe déjà !"); return; }
-  classesData[nom] = { code: "", profs: [] };
-  renderClasses();
+  saisirTexte("Nom de la nouvelle classe :", "Ex: 3A, 4B...", function(val) {
+    var nom = val.toUpperCase();
+    if (classesData[nom]) { alert("Cette classe existe déjà !"); return; }
+    classesData[nom] = { code: "", profs: [] };
+    renderClasses();
+  });
 }
 
 function supprimerClasse(nom) {
-  if (!confirm("Supprimer la classe " + nom + " ?")) return;
-  delete classesData[nom];
-  renderClasses();
+  confirmerAction("Supprimer la classe <strong>" + nom + "</strong> et tous ses profs ?", function() {
+    delete classesData[nom];
+    renderClasses();
+  });
 }
 
 function ajouterProf(nomClasse) {
@@ -631,11 +678,14 @@ function previewLogo(input, previewId) {
 }
 
 function ajouterClasseEleves() {
-  var nom = prompt("Nom de la classe (ex: 3A) :").trim().toUpperCase();
-  if (!nom) return;
-  if (!window.elevesData) window.elevesData = {};
-  if (!window.elevesData[nom]) window.elevesData[nom] = [];
-  renderEleves();
+  saisirTexte("Nom de la classe :", "Ex: 3A, 4B...", function(nom) {
+    nom = nom.toUpperCase();
+    if (!window.elevesData) window.elevesData = {};
+    if (window.elevesData[nom]) { alert("Cette classe existe déjà !"); return; }
+    window.elevesData[nom] = [];
+    window._elevesOuverts[nom] = true;
+    renderEleves();
+  });
 }
 
 function ajouterEleve(classe) {
@@ -651,10 +701,11 @@ function supprimerEleve(classe, idx) {
 }
 
 function supprimerElevesClasse(classe) {
-  if (!confirm("Supprimer tous les élèves de la classe " + classe + " ?")) return;
-  delete window.elevesData[classe];
-  sauvegarderElevesFirebase();
-  renderEleves();
+  confirmerAction("Supprimer tous les élèves de la classe <strong>" + classe + "</strong> ?", function() {
+    delete window.elevesData[classe];
+    sauvegarderElevesFirebase();
+    renderEleves();
+  });
 }
 
 function importerDirection() {
