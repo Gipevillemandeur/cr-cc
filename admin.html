@@ -93,7 +93,8 @@
       <div class="admin-subtitle" id="admin-etablissement-nom">Chargement...</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
-      <button onclick="resetFirebaseConfig()" style="background:none;border:1px solid #d6dde5;border-radius:8px;padding:6px 10px;font-size:11px;color:#5d6b7b;cursor:pointer;">🔄 Firebase</button>
+      <a href="https://console.firebase.google.com" target="_blank" style="background:none;border:1px solid #f2a541;border-radius:8px;padding:6px 10px;font-size:11px;color:#c07800;cursor:pointer;font-weight:700;text-decoration:none;">🔥 Console Firebase</a>
+      <button onclick="resetFirebaseConfig()" style="background:none;border:1px solid #d6dde5;border-radius:8px;padding:6px 10px;font-size:11px;color:#5d6b7b;cursor:pointer;">🔄 Réinitialiser</button>
       <a href="index.html" class="btn-save" style="text-decoration:none;font-size:13px;">← Retour</a>
     </div>
   </div>
@@ -511,7 +512,7 @@ function renderEleves() {
   if (!window._elevesOuverts) window._elevesOuverts = {};
 
   classes.forEach(function(nom) {
-    var eleves = window.elevesData[nom] || [];
+    var eleves = (window.elevesData[nom] || []).slice().sort(function(a, b) { return (a.nom||"").localeCompare(b.nom||"", "fr"); });
     var estOuvert = window._elevesOuverts[nom] === true; // fermé par défaut
 
     var div = document.createElement("div");
@@ -769,6 +770,10 @@ function importerEleves() {
     if (!newEleves[classe]) newEleves[classe] = [];
     newEleves[classe].push({ nom: nom, prenom: prenom });
     nbImport++;
+  });
+  // Trier chaque classe par nom
+  Object.keys(newEleves).forEach(function(cls) {
+    newEleves[cls].sort(function(a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
   });
   if (!window.elevesData) window.elevesData = {};
   Object.keys(newEleves).forEach(function(cls) { window.elevesData[cls] = newEleves[cls]; });
