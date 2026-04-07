@@ -457,19 +457,22 @@ function renderCodes() {
   var container = document.getElementById("codes-list");
   if (!container) return;
   container.innerHTML = "";
-  var classes = Object.keys(classesData).sort();
+  // Fusionner les classes de professeurs ET d'élèves
+  var classesProfs  = Object.keys(classesData);
+  var classesEleves = Object.keys(window.elevesData || {});
+  var toutesClasses = Array.from(new Set(classesProfs.concat(classesEleves))).sort();
 
-  if (classes.length === 0) {
-    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucune classe configurée dans l\'onglet Professeurs.</p>';
+  if (toutesClasses.length === 0) {
+    container.innerHTML = '<p style="color:#5d6b7b;font-size:13px;">Aucune classe configurée dans les onglets Professeurs ou Élèves.</p>';
     return;
   }
 
   var grid = document.createElement("div");
   grid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:12px;";
 
-  classes.forEach(function(nom) {
-    var classe  = classesData[nom];
-    var nbProfs = (classe.profs || []).length;
+  toutesClasses.forEach(function(nom) {
+    var classe   = classesData[nom] || { code: "", profs: [] };
+    var nbProfs  = (classe.profs || []).length;
     var nbEleves = ((window.elevesData || {})[nom] || []).length;
 
     var card = document.createElement("div");
@@ -511,7 +514,10 @@ function renderCodes() {
     codeInput.value = classe.code || "";
     codeInput.placeholder = "Code d\'accès";
     codeInput.style.cssText = "flex:1;border:1px solid #d6dde5;border-radius:6px;padding:6px 10px;font-size:14px;letter-spacing:2px;";
-    codeInput.addEventListener("input", (function(n){ return function(){ classesData[n].code = this.value; }; })(nom));
+    codeInput.addEventListener("input", (function(n){ return function(){
+      if (!classesData[n]) classesData[n] = { profs: [] };
+      classesData[n].code = this.value;
+    }; })(nom));
 
     codeWrap.appendChild(codeLabel);
     codeWrap.appendChild(codeInput);
